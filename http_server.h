@@ -21,7 +21,7 @@ using RequestHandler = std::function<boost::beast::http::response<boost::beast::
 class Session : public std::enable_shared_from_this<Session>
 {
 public:
-    Session(boost::asio::ip::tcp::socket socket, boost::asio::strand<boost::asio::io_context::executor_type> strand, FailCallback on_fail, RequestHandler on_request);
+    Session(boost::asio::ip::tcp::socket socket, boost::asio::strand<boost::asio::io_context::executor_type> strand, boost::asio::io_context& ioc, FailCallback on_fail, RequestHandler on_request);
 
     void run();
 
@@ -32,6 +32,8 @@ private:
     boost::beast::http::request<boost::beast::http::string_body> req_;
     FailCallback fail_callback_;
     RequestHandler request_handler_;
+    boost::asio::steady_timer timer_;
+    static constexpr std::chrono::seconds timeout{30};
 
     void do_read();
     void do_write(boost::beast::http::response<boost::beast::http::string_body> res);

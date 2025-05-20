@@ -213,20 +213,74 @@ boost::beast::http::response<boost::beast::http::string_body> TnG_Reader::server
 
                 if (path == "/w4g/PayResult")
                 {
-                    std::string orderId;
                     int state = 0;
+                    std::string orderId = "";
+                    int payType = 0;
+                    std::string cardNo = "";
+                    int bal = 0;
+                    long int payTime = 0;
+                    std::string stan = "";
+                    std::string apprCode = "";
+
+                    if (obj.contains("State"))
+                    {
+                        state = boost::json::value_to<int>(obj["State"]);
+                    }
 
                     if (obj.contains("OrderId"))
                     {
                         orderId = boost::json::value_to<std::string>(obj["OrderId"]);
                     }
 
-                    response_obj["State"] = state;
+                    if (obj.contains("PayType"))
+                    {
+                        payType = boost::json::value_to<int>(obj["PayType"]);
+                    }
+
+                    if (obj.contains("CardNo"))
+                    {
+                        cardNo = boost::json::value_to<std::string>(obj["CardNo"]);
+                    }
+
+                    if (obj.contains("Balance"))
+                    {
+                        bal = boost::json::value_to<int>(obj["Balance"]);
+                    }
+
+                    if (obj.contains("PayTime"))
+                    {
+                        payTime = boost::json::value_to<long int>(obj["PayTime"]);
+                    }
+
+                    if (obj.contains("STAN"))
+                    {
+                        stan = boost::json::value_to<std::string>(obj["STAN"]);
+                    }
+
+                    if (obj.contains("APPR_CODE"))
+                    {
+                        apprCode = boost::json::value_to<std::string>(obj["APPR_CODE"]);
+                    }
+
+                    response_obj["State"] = 0;
                     response_obj["OrderId"] = orderId;
+
+                    // Need to raise event here
+                    std::ostringstream oss;
+                    oss << "state: " << state;
+                    oss << ", orderId: " << orderId;
+                    oss << ", payType: " << payType;
+                    oss << ", cardNo: " << cardNo;
+                    oss << ", bal: " << bal;
+                    oss << ", payTime: " << payTime;
+                    oss << ", stan: " << stan;
+                    oss << ", apprCode: " << apprCode;
+                    Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
                 }
                 else if (path == "/w4g/CardNoUpl")
                 {
                     std::string cardNo;
+                    std::string orderId;
                     int state = 0;
 
                     if (obj.contains("CardNo"))
@@ -234,8 +288,19 @@ boost::beast::http::response<boost::beast::http::string_body> TnG_Reader::server
                         cardNo = boost::json::value_to<std::string>(obj["CardNo"]);
                     }
 
-                    response_obj["State"] = state;
+                    if (obj.contains("OrderId"))
+                    {
+                        orderId = boost::json::value_to<std::string>(obj["OrderId"]);
+                    }
+
+                    response_obj["State"] = 0;
                     response_obj["CardNo"] = cardNo;
+
+                    // Need to raise event here
+                    std::ostringstream oss;
+                    oss << "cardNo: " << cardNo;
+                    oss << ", orderId: " << orderId;
+                    Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
                 }
                 else
                 {

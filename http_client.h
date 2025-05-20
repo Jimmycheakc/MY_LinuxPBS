@@ -33,6 +33,7 @@ private:
     boost::beast::http::response<boost::beast::http::string_body> res_;
     ResponseHandler callback_;
     FailureHandler failure_callback_;
+    static constexpr std::chrono::seconds timeout{30};
 
     void on_resolve(boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type results);
     void on_connect(boost::beast::error_code ec, boost::asio::ip::tcp::resolver::results_type::endpoint_type);

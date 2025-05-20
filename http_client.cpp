@@ -38,7 +38,7 @@ void ClientSession::on_resolve(boost::beast::error_code ec, boost::asio::ip::tcp
         return fail(ec, "resolve");
     }
 
-    stream_.expires_after(std::chrono::seconds(30));
+    stream_.expires_after(timeout);
     stream_.async_connect(results,
         boost::asio::bind_executor(strand_,
             boost::beast::bind_front_handler(&ClientSession::on_connect, shared_from_this())
@@ -53,7 +53,7 @@ void ClientSession::on_connect(boost::beast::error_code ec, boost::asio::ip::tcp
         return fail(ec, "connect");
     }
 
-    stream_.expires_after(std::chrono::seconds(30));
+    stream_.expires_after(timeout);
     boost::beast::http::async_write(stream_, req_,
         boost::asio::bind_executor(strand_,
             boost::beast::bind_front_handler(&ClientSession::on_write, shared_from_this())
@@ -68,6 +68,7 @@ void ClientSession::on_write(boost::beast::error_code ec, std::size_t)
         return fail(ec, "write");
     }
 
+    stream_.expires_after(timeout);
     boost::beast::http::async_read(stream_, buffer_, res_,
         boost::asio::bind_executor(strand_,
             boost::beast::bind_front_handler(&ClientSession::on_read, shared_from_this())

@@ -30,6 +30,7 @@
 #include "upt.h"
 #include "barcode_reader.h"
 #include "boost/algorithm/string.hpp"
+#include "touchngo_reader.h"
 
 operation* operation::operation_ = nullptr;
 std::mutex operation::mutex_;

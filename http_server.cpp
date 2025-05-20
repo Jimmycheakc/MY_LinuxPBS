@@ -1,9 +1,10 @@
 #include "http_server.h"
 
 // Class Session
-Session::Session(boost::asio::ip::tcp::socket socket, boost::asio::strand<boost::asio::io_context::executor_type> strand, FailCallback on_fail, RequestHandler on_request)
+Session::Session(boost::asio::ip::tcp::socket socket, boost::asio::strand<boost::asio::io_context::executor_type> strand, boost::asio::io_context& ioc, FailCallback on_fail, RequestHandler on_request)
     : socket_(std::move(socket)),
-    strand_(std::move(strand))
+    strand_(std::move(strand)),
+    timer_(ioc)
 {
     request_handler_ = std::move(on_request);
     fail_callback_ = std::move(on_fail);
@@ -17,9 +18,37 @@ void Session::run()
 void Session::do_read()
 {
     auto self = shared_from_this();
+    
+    // Start timer
+    timer_.expires_after(timeout);
+    timer_.async_wait(
+        boost::asio::bind_executor(strand_,
+            [this, self](const boost::system::error_code ec) {
+                if (!ec)
+                {
+                    // Timer expired
+                    socket_.close();
+                    if (fail_callback_)
+                    {
+                        fail_callback_("Session timeout");
+                    }
+                }
+                else if (ec != boost::asio::error::operation_aborted)
+                {
+                    // Optional: log unexpected timer error
+                    if (fail_callback_)
+                    {
+                        fail_callback_("Timer error: " + ec.message());
+                    }
+                }
+            }
+        )
+    );
+    
     boost::beast::http::async_read(socket_, buffer_, req_,
         boost::asio::bind_executor(strand_,
             [this, self](boost::beast::error_code ec, std::size_t) {
+                timer_.cancel(); // Cancel timer on completion
                 if (ec)
                 {
                     if (fail_callback_)
@@ -38,11 +67,39 @@ void Session::do_read()
 void Session::do_write(boost::beast::http::response<boost::beast::http::string_body> res)
 {
     auto self = shared_from_this();
+
+    // Start timer
+    timer_.expires_after(timeout);
+    timer_.async_wait(
+        boost::asio::bind_executor(strand_,
+            [this, self](const boost::system::error_code ec) {
+                if (!ec)
+                {
+                    // Timer expired
+                    socket_.close();
+                    if (fail_callback_)
+                    {
+                        fail_callback_("Session timeout");
+                    }
+                }
+                else if (ec != boost::asio::error::operation_aborted)
+                {
+                    // Optional: log unexpected timer error
+                    if (fail_callback_)
+                    {
+                        fail_callback_("Timer error: " + ec.message());
+                    }
+                }
+            }
+        )
+    );
+
     auto sp = std::make_shared<boost::beast::http::response<boost::beast::http::string_body>>(std::move(res));
     boost::beast::http::async_write(socket_, *sp,
         boost::asio::bind_executor(strand_,
             [this, self, sp](boost::beast::error_code ec, std::size_t)
             {
+                timer_.cancel();
                 socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_send, ec);
                 if (ec && fail_callback_)
                 {
@@ -122,7 +179,7 @@ void HttpServer::do_accept()
         {
             if (!ec)
             {
-                std::make_shared<Session>(std::move(socket), strand_, fail_callback_, request_handler_)->run();
+                std::make_shared<Session>(std::move(socket), strand_, ioc_, fail_callback_, request_handler_)->run();
             }
             else if (fail_callback_)
             {
