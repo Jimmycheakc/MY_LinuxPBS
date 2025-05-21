@@ -76,24 +76,28 @@ void TnG_Reader::startIoContextThread()
 
 void TnG_Reader::FnTnGReader_PayRequest(int payAmt, int discountAmt, long int enterTime, long int payTime, const std::string& orderId)
 {
-    if (httpClient_)
-    {
-        boost::json::object obj;
-        obj["payAmount"] = payAmt;
-        obj["DiscountAmount"] = discountAmt;
-        obj["EnterTime"] = enterTime;
-        obj["PayTime"] = payTime;
-        obj["OrderId"] = orderId;
+    boost::asio::post(strand_, 
+        [this, payAmt, discountAmt, enterTime, payTime, orderId] {
+            if (httpClient_)
+            {
+                boost::json::object obj;
+                obj["payAmount"] = payAmt;
+                obj["DiscountAmount"] = discountAmt;
+                obj["EnterTime"] = enterTime;
+                obj["PayTime"] = payTime;
+                obj["OrderId"] = orderId;
 
-        httpClient_->post(remoteServerHost_, remoteServerPort_, "/w4g/PayRequest", 
-            boost::json::serialize(obj), 
-            std::bind(&TnG_Reader::payRequestSuccessCb, this, std::placeholders::_1),
-            std::bind(&TnG_Reader::payRequestFailureCb, this, std::placeholders::_1, std::placeholders::_2));
-        
-        std::ostringstream oss;
-        oss << "Outgoing req => " << " path: /w4g/PayRequest , data: " << boost::json::serialize(obj);
-        Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
-    }
+                httpClient_->post(remoteServerHost_, remoteServerPort_, "/w4g/PayRequest", 
+                    boost::json::serialize(obj), 
+                    std::bind(&TnG_Reader::payRequestSuccessCb, this, std::placeholders::_1),
+                    std::bind(&TnG_Reader::payRequestFailureCb, this, std::placeholders::_1, std::placeholders::_2));
+                
+                std::ostringstream oss;
+                oss << "Outgoing req => " << " path: /w4g/PayRequest , data: " << boost::json::serialize(obj);
+                Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+            }
+        }
+    );
 }
 
 void TnG_Reader::payRequestSuccessCb(const boost::beast::http::response<boost::beast::http::string_body>& res)
@@ -112,20 +116,24 @@ void TnG_Reader::payRequestFailureCb(const std::string& what, const boost::beast
 
 void TnG_Reader::FnTnGReader_PayCancel(const std::string& orderId)
 {
-    if (httpClient_)
-    {
-        boost::json::object obj;
-        obj["OrderId"] = orderId;
+    boost::asio::post(strand_,
+        [this, orderId] {
+            if (httpClient_)
+            {
+                boost::json::object obj;
+                obj["OrderId"] = orderId;
 
-        httpClient_->post(remoteServerHost_, remoteServerPort_, "/w4g/PayCancel",
-            boost::json::serialize(obj),
-            std::bind(&TnG_Reader::payCancelSuccessCb, this, std::placeholders::_1),
-            std::bind(&TnG_Reader::payCancelFailureCb, this, std::placeholders::_1, std::placeholders::_2));
-        
-        std::ostringstream oss;
-        oss << "Outgoing req => " << " path: /w4g/PayCancel , data: " << boost::json::serialize(obj);
-        Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
-    }
+                httpClient_->post(remoteServerHost_, remoteServerPort_, "/w4g/PayCancel",
+                    boost::json::serialize(obj),
+                    std::bind(&TnG_Reader::payCancelSuccessCb, this, std::placeholders::_1),
+                    std::bind(&TnG_Reader::payCancelFailureCb, this, std::placeholders::_1, std::placeholders::_2));
+                
+                std::ostringstream oss;
+                oss << "Outgoing req => " << " path: /w4g/PayCancel , data: " << boost::json::serialize(obj);
+                Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+            }
+        }
+    );
 }
 
 void TnG_Reader::payCancelSuccessCb(const boost::beast::http::response<boost::beast::http::string_body>& res)
@@ -144,21 +152,26 @@ void TnG_Reader::payCancelFailureCb(const std::string& what, const boost::beast:
 
 void TnG_Reader::FnTnGReader_EnableReader(int enable, const std::string& orderId)
 {
-    if (httpClient_)
-    {
-        boost::json::object obj;
-        obj["Enable"] = enable;
-        obj["OrderId"] = orderId;
+    boost::asio::post(strand_, 
+        [this, enable, orderId]
+        {
+            if (httpClient_)
+            {
+                boost::json::object obj;
+                obj["Enable"] = enable;
+                obj["OrderId"] = orderId;
 
-        httpClient_->post(remoteServerHost_, remoteServerPort_, "/w4g/ReaderCtrl",
-            boost::json::serialize(obj),
-            std::bind(&TnG_Reader::enableReaderSuccessCb, this, std::placeholders::_1),
-            std::bind(&TnG_Reader::enableReaderFailureCb, this, std::placeholders::_1, std::placeholders::_2));
-        
-        std::ostringstream oss;
-        oss << "Outgoing req => " << " path: /w4g/ReaderCtrl , data: " << boost::json::serialize(obj);
-        Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
-    }
+                httpClient_->post(remoteServerHost_, remoteServerPort_, "/w4g/ReaderCtrl",
+                    boost::json::serialize(obj),
+                    std::bind(&TnG_Reader::enableReaderSuccessCb, this, std::placeholders::_1),
+                    std::bind(&TnG_Reader::enableReaderFailureCb, this, std::placeholders::_1, std::placeholders::_2));
+                
+                std::ostringstream oss;
+                oss << "Outgoing req => " << " path: /w4g/ReaderCtrl , data: " << boost::json::serialize(obj);
+                Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+            }
+        }
+    );
 }
 
 void TnG_Reader::enableReaderSuccessCb(const boost::beast::http::response<boost::beast::http::string_body>& res)
