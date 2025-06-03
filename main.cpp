@@ -17,7 +17,6 @@
 #include "upt.h"
 #include "event_manager.h"
 #include "event_handler.h"
-#include "lcsc.h"
 #include "db.h"
 #include "odbc.h"
 #include "structuredata.h"
@@ -25,6 +24,7 @@
 #include "printer.h"
 #include "udp.h"
 #include "ksm_reader.h"
+#include <filesystem>
 
 
 void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::steady_timer * timer, boost::asio::strand<boost::asio::io_context::executor_type>* strand_)
@@ -66,9 +66,6 @@ void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::
                 
                 
             }
-
-            // Check the LCSC CD files- download and upload
-            LCSCReader::getInstance()->FnUploadLCSCCDFiles();
 
             // Clear expired season
             if (operation::getInstance()->tProcess.giLastHousekeepingDate != Common::getInstance()->FnGetCurrentDay())
@@ -372,7 +369,6 @@ int main (int agrc, char* argv[])
     EventManager::getInstance()->FnStopEventThread();
     Upt::getInstance()->FnUptClose();
     KSM_Reader::getInstance()->FnKSMReaderClose();
-    LCSCReader::getInstance()->FnLCSCReaderClose();
     Printer::getInstance()->FnPrinterClose();
     Lpr::getInstance()->FnLprClose();
 

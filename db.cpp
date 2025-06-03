@@ -3302,11 +3302,6 @@ DBError db::loadParam()
 			{
 				try
 				{
-					if (readerItem.GetDataItem(0) == "commportlcsc")
-					{
-						operation::getInstance()->tParas.giCommPortLCSC = std::stoi(readerItem.GetDataItem(1));
-					}
-
 					if (readerItem.GetDataItem(0) == "commportprinter")
 					{
 						operation::getInstance()->tParas.giCommPortPrinter = std::stoi(readerItem.GetDataItem(1));
@@ -3320,31 +3315,6 @@ DBError db::loadParam()
 					if (readerItem.GetDataItem(0) == "carparkcode")
 					{
 						operation::getInstance()->tParas.gscarparkcode = readerItem.GetDataItem(1);
-					}
-
-					if (readerItem.GetDataItem(0) == "locallcsc")
-					{
-						operation::getInstance()->tParas.gsLocalLCSC = readerItem.GetDataItem(1);
-					}
-
-					if (readerItem.GetDataItem(0) == "remotelcsc")
-					{
-						operation::getInstance()->tParas.gsRemoteLCSC = readerItem.GetDataItem(1);
-					}
-
-					if (readerItem.GetDataItem(0) == "remotelcscback")
-					{
-						operation::getInstance()->tParas.gsRemoteLCSCBack = readerItem.GetDataItem(1);
-					}
-
-					if (readerItem.GetDataItem(0) == "CSCRcdfFolder")
-					{
-						operation::getInstance()->tParas.gsCSCRcdfFolder = readerItem.GetDataItem(1);
-					}
-
-					if (readerItem.GetDataItem(0) == "CSCRcdackFolder")
-					{
-						operation::getInstance()->tParas.gsCSCRcdackFolder = readerItem.GetDataItem(1);
 					}
 
 					if (readerItem.GetDataItem(0) == "CPOID")

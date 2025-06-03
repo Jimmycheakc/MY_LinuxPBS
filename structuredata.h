@@ -525,7 +525,6 @@ struct  tParas_Struct
 	int giEPS;
 
 	//-----comport 
-	int giCommPortLCSC;				// DB Loaded: commportlcsc
 	int giCommPortKDEReader;		// DB Loaded: CommPortReader
 	int giCommPortUPOS;
 	int giCommPortPrinter;			// DB Loaded: CommPortPrinter
@@ -539,12 +538,6 @@ struct  tParas_Struct
 	bool gbAntiIURepetition;		// *DB Loaded: AntiIURepetition, but not use
 	int giAntInqTO;					// DB Loaded: AntInqTO
 
-	//--- LCSC 
-	string gsLocalLCSC;
-	string gsRemoteLCSC;
-	string gsRemoteLCSCBack;
-	string gsCSCRcdfFolder;
-	string gsCSCRcdackFolder;
 	string gsCPOID;					// DB Loaded: CPOID
 	string gsCPID;					// DB Loaded: CPID
 	string gscarparkcode;

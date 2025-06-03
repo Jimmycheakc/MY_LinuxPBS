@@ -50,7 +50,6 @@ set(SOURCE_FILES
     led.cpp
     event_manager.cpp
     event_handler.cpp
-    lcsc.cpp
     ping.cpp
     udp.cpp
     ce_time.cpp

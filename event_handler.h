@@ -33,21 +33,6 @@ private:
     static std::mutex mutex_;
     EventHandler();
 
-    // LCSC Event Handler
-    bool handleLcscReaderStatus(const BaseEvent* event);
-    bool handleLcscReaderLogin(const BaseEvent* event);
-    bool handleLcscReaderLogout(const BaseEvent* event);
-    bool handleLcscReaderGetCardID(const BaseEvent* event);
-    bool handleLcscReaderGetCardBalance(const BaseEvent* event);
-    bool handleLcscReaderGetCardDeduct(const BaseEvent* event);
-    bool handleLcscReaderGetCardRecord(const BaseEvent* event);
-    bool handleLcscReaderGetCardFlush(const BaseEvent* event);
-    bool handleLcscReaderGetTime(const BaseEvent* event);
-    bool handleLcscReaderSetTime(const BaseEvent* event);
-    bool handleLcscReaderUploadCFGFile(const BaseEvent* event);
-    bool handleLcscReaderUploadCILFile(const BaseEvent* event);
-    bool handleLcscReaderUploadBLFile(const BaseEvent* event);
-
     // DIO Event Handler
     bool handleDIOEvent(const BaseEvent* event);
 

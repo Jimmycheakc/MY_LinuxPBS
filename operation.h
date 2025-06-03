@@ -5,7 +5,6 @@
 #include <sstream>
 #include <iostream>
 #include <mutex>
-#include "lcsc.h"
 #include "structuredata.h"
 #include "db.h"
 #include "udp.h"
@@ -100,10 +99,8 @@ public:
     bool LoadedparameterOK();
     int  GetSeasonTransType(int VehicleType, int SeasonType, int TransType);
     void EnableCashcard(bool bEnable);
-    void EnableLCSC(bool bEnable);
     void EnableKDE(bool bEnable);
     void EnableUPOS(bool bEnable);
-    void ProcessLCSC(const std::string& eventData);
     void ProcessBarcodeData(string sBarcodedata);
     void KSM_CardIn();
     void KSM_CardInfo(string sKSMCardNo, long sKSMCardBal, bool sKSMCardExpired);
@@ -138,7 +135,6 @@ public:
     void FnLoopATimeoutHandler();
 
     void Clearme();
-    void RetryLCSCLastCommand();
 
      /**
      * Singleton opertation should not be cloneable.
