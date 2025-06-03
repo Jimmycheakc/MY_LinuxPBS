@@ -33,6 +33,10 @@ public:
     std::string FnGetLPRErrorCount() const;
     bool FnGetShowTime() const;
     std::string FnGetBlockIUPrefix() const;
+    std::string FnGetTnGRemoteServerHost() const;
+    std::string FnGetTnGRemoteServerPort() const;
+    std::string FnGetTnGListenHost() const;
+    std::string FnGetTnGListenPort() const;
 
     // Confirm [DI]
     int FnGetLoopA() const;
@@ -85,6 +89,10 @@ private:
     std::string LPRErrorCount_;
     bool ShowTime_;
     std::string BlockIUPrefix_;
+    std::string TnGRemoteServerHost_;
+    std::string TnGRemoteServerPort_;
+    std::string TnGListenHost_;
+    std::string TnGListenPort_;
 
     // Confirm [DI]
     int LoopA_;

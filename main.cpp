@@ -21,6 +21,7 @@
 #include "operation.h"
 #include "udp.h"
 #include <filesystem>
+#include "touchngo_reader.h"
 
 
 void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::steady_timer * timer, boost::asio::strand<boost::asio::io_context::executor_type>* strand_)
@@ -278,10 +279,14 @@ void signalHandler(const boost::system::error_code& ec, int signal, boost::asio:
         operation::getInstance()->SendMsg2Server("09","11Stopping...");
 
         // Display Station Stopped on LCD
-        std::string LCDMsg = "Station Stopped!    ";
-        char* sLCDMsg = const_cast<char*>(LCDMsg.data());
+        std::string LCDLine1Msg = ">>> STN STOPPED <<< ";
+        std::string LCDLine2Msg = Common::getInstance()->FnGetDateTimeFormat_ddmmyyy_hhmmss();
+        char* sLCDLine1Msg = const_cast<char*>(LCDLine1Msg.data());
+        char* sLCDLine2Msg = const_cast<char*>(LCDLine2Msg.data());
         LCD::getInstance()->FnLCDClearDisplayRow(1);
-        LCD::getInstance()->FnLCDDisplayRow(1, sLCDMsg);
+        LCD::getInstance()->FnLCDClearDisplayRow(2);
+        LCD::getInstance()->FnLCDDisplayRow(1, sLCDLine1Msg);
+        LCD::getInstance()->FnLCDDisplayRow(2, sLCDLine2Msg);
         usleep(500000);
 
         // Release the work guard to allow io_context to exit
@@ -351,6 +356,7 @@ int main (int agrc, char* argv[])
     // Perform cleanup actions after all threads have joined
     EventManager::getInstance()->FnStopEventThread();
     Lpr::getInstance()->FnLprClose();
+    TnG_Reader::getInstance()->FnTnGReaderClose();
 
     return 0;
 }

@@ -59,10 +59,6 @@ void EventHandler::FnHandleEvents(const std::string& eventName, const BaseEvent*
         try
         {
             ret = handler(event);
-
-            std::stringstream ss;
-            ss << __func__ << " Event handle return : " << ret;
-            Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
         }
         catch (const std::exception& e)
         {

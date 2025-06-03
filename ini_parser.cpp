@@ -69,6 +69,10 @@ void IniParser::FnReadIniFile()
         LPRErrorCount_                  = pt.get<std::string>("setting.LPRErrorCount", "");
         ShowTime_                       = (std::stoi(pt.get<std::string>("setting.ShowTime", "")) == 1) ? true : false;
         BlockIUPrefix_                  = pt.get<std::string>("setting.BlockIUPrefix", "");
+        TnGRemoteServerHost_            = pt.get<std::string>("setting.TnGRemoteServerHost", "");
+        TnGRemoteServerPort_            = pt.get<std::string>("setting.TnGRemoteServerPort", "");
+        TnGListenHost_                  = pt.get<std::string>("setting.TnGListenHost", "");
+        TnGListenPort_                  = pt.get<std::string>("setting.TnGListenPort", "");
 
         // Confirm [DI]
         LoopA_                          = pt.get<int>("DI.LoopA");
@@ -243,6 +247,26 @@ bool IniParser::FnGetShowTime() const
 std::string IniParser::FnGetBlockIUPrefix() const
 {
     return BlockIUPrefix_;
+}
+
+std::string IniParser::FnGetTnGRemoteServerHost() const
+{
+    return TnGRemoteServerHost_;
+}
+
+std::string IniParser::FnGetTnGRemoteServerPort() const
+{
+    return TnGRemoteServerPort_;
+}
+
+std::string IniParser::FnGetTnGListenHost() const
+{
+    return TnGListenHost_;
+}
+
+std::string IniParser::FnGetTnGListenPort() const
+{
+    return TnGListenPort_;
 }
 
 // Confirm [DI]

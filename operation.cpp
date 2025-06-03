@@ -617,6 +617,8 @@ void operation::Initdevice(io_context& ioContext)
         }));
     }
 
+    TnG_Reader::getInstance()->FnTnGReaderInit(IniParser::getInstance()->FnGetTnGRemoteServerHost(), IniParser::getInstance()->FnGetTnGRemoteServerPort(), IniParser::getInstance()->FnGetTnGListenHost(), IniParser::getInstance()->FnGetTnGListenPort());
+
     DIO::getInstance()->FnDIOInit();
     Lpr::getInstance()->FnLprInit(ioContext);
     BARCODE_READER::getInstance()->FnBarcodeReaderInit();
