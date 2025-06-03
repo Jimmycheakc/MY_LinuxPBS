@@ -1,6 +1,7 @@
 #include "touchngo_reader.h"
 #include "log.h"
 #include <boost/json.hpp>
+#include "event_manager.h"
 
 TnG_Reader* TnG_Reader::TnG_Reader_;
 std::mutex TnG_Reader::mutex_;
@@ -105,6 +106,8 @@ void TnG_Reader::payRequestSuccessCb(const boost::beast::http::response<boost::b
     std::ostringstream oss;
     oss << __func__ << " Incoming res <= data: " << res.body();
     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGPayRequest", true);
 }
 
 void TnG_Reader::payRequestFailureCb(const std::string& what, const boost::beast::error_code& ec)
@@ -112,6 +115,8 @@ void TnG_Reader::payRequestFailureCb(const std::string& what, const boost::beast
     std::ostringstream oss;
     oss << __func__ << " Error: " << what << ": " << ec.message();
     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGPayRequest", false);
 }
 
 void TnG_Reader::FnTnGReader_PayCancel(const std::string& orderId)
@@ -141,6 +146,8 @@ void TnG_Reader::payCancelSuccessCb(const boost::beast::http::response<boost::be
     std::ostringstream oss;
     oss << __func__ << " Incoming res <= data: " << res.body();
     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGPayCancelRequest", true);
 }
 
 void TnG_Reader::payCancelFailureCb(const std::string& what, const boost::beast::error_code& ec)
@@ -148,6 +155,8 @@ void TnG_Reader::payCancelFailureCb(const std::string& what, const boost::beast:
     std::ostringstream oss;
     oss << __func__ << " Error: " << what << ": " << ec.message();
     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGPayCancelRequest", false);
 }
 
 void TnG_Reader::FnTnGReader_EnableReader(int enable, const std::string& orderId)
@@ -179,6 +188,8 @@ void TnG_Reader::enableReaderSuccessCb(const boost::beast::http::response<boost:
     std::ostringstream oss;
     oss << __func__ << " Incoming res <= data: " << res.body();
     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGEnableReaderRequest", true);
 }
 
 void TnG_Reader::enableReaderFailureCb(const std::string& what, const boost::beast::error_code& ec)
@@ -186,6 +197,8 @@ void TnG_Reader::enableReaderFailureCb(const std::string& what, const boost::bea
     std::ostringstream oss;
     oss << __func__ << " Error: " << what << ": " << ec.message();
     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGEnableReaderRequest", false);
 }
 
 void TnG_Reader::serverHandleFailureCb(const std::string& what)
@@ -280,15 +293,17 @@ boost::beast::http::response<boost::beast::http::string_body> TnG_Reader::server
 
                     // Need to raise event here
                     std::ostringstream oss;
-                    oss << "state: " << state;
-                    oss << ", orderId: " << orderId;
-                    oss << ", payType: " << payType;
-                    oss << ", cardNo: " << cardNo;
-                    oss << ", bal: " << bal;
-                    oss << ", payTime: " << payTime;
-                    oss << ", stan: " << stan;
-                    oss << ", apprCode: " << apprCode;
+                    oss << "state=" << state;
+                    oss << ",orderId=" << orderId;
+                    oss << ",payType=" << payType;
+                    oss << ",cardNo=" << cardNo;
+                    oss << ",bal=" << bal;
+                    oss << ",payTime=" << payTime;
+                    oss << ",stan=" << stan;
+                    oss << ",apprCode=" << apprCode;
                     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+                    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGPayResultReceived", oss.str());
                 }
                 else if (path == "/w4g/CardNoUpl")
                 {
@@ -311,9 +326,11 @@ boost::beast::http::response<boost::beast::http::string_body> TnG_Reader::server
 
                     // Need to raise event here
                     std::ostringstream oss;
-                    oss << "cardNo: " << cardNo;
-                    oss << ", orderId: " << orderId;
+                    oss << "cardNo=" << cardNo;
+                    oss << ",orderId=" << orderId;
                     Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+
+                    EventManager::getInstance()->FnEnqueueEvent("Evt_handleTnGCardNumReceived", oss.str());
                 }
                 else
                 {

@@ -129,6 +129,7 @@ public:
     float GfeeFormat(float value);
     void  RedeemTime2Amt();
     void  ReceivedEntryRecord();
+    void processTnGResponse(const std::string& respCmd, const std::string& sResult);
     
     void Openbarrier();
     void closeBarrier();

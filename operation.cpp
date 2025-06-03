@@ -4617,3 +4617,126 @@ void operation::ReceivedEntryRecord()
        CloseExitOperation(FreeParking);
     } 
 }
+
+void operation::processTnGResponse(const std::string& respCmd, const std::string& sResult)
+{
+    if (respCmd == "PayResult")
+    {
+        try
+        {
+            int state = 0;
+            std::string orderId = "";
+            int payType = 0;
+            std::string cardNo = "";
+            int bal = 0;
+            long int payTime = 0;
+            std::string stan = "";
+            std::string apprCode = "";
+            
+            std::vector<std::string> subVector = Common::getInstance()->FnParseString(sResult, ',');
+            for (unsigned int i = 0; i < subVector.size(); i++)
+            {
+                std::string pair = subVector[i];
+                std::string param = Common::getInstance()->FnBiteString(pair, '=');
+                std::string value = pair;
+
+                if (param == "state")
+                {
+                    state = std::stoi(value);
+                }
+
+                if (param == "orderId")
+                {
+                    orderId = value;
+                }
+
+                if (param == "payType")
+                {
+                    payType = std::stoi(value);
+                }
+
+                if (param == "cardNo")
+                {
+                    cardNo = value;
+                }
+
+                if (param == "bal")
+                {
+                    bal = std::stoi(value);
+                }
+
+                if (param == "payTime")
+                {
+                    payTime = std::stol(value);
+                }
+
+                if (param == "stan")
+                {
+                    stan = value;
+                }
+
+                if (param == "apprCode")
+                {
+                    apprCode = value;
+                }
+            }
+
+            // Process result
+
+            std::ostringstream oss;
+            oss << "state=" << state;
+            oss << ", orderId=" << orderId;
+            oss << ", payType=" << payType;
+            oss << ", cardNo=" << cardNo;
+            oss << ", bal=" << bal;
+            oss << ", payTime=" << payTime;
+            oss << ", stan=" << stan;
+            oss << ", apprCode=" << apprCode;
+            writelog(oss.str(), "OPR");
+        }
+        catch (const std::exception& ex)
+        {
+            std::ostringstream oss;
+            oss << "Exception : " << ex.what();
+            writelog(oss.str(), "OPR");
+        }
+    }
+    else if (respCmd == "TnGCardNumResult")
+    {
+        try
+        {
+            std::string cardNo;
+            std::string orderId;
+
+            std::vector<std::string> subVector = Common::getInstance()->FnParseString(sResult, ',');
+            for (unsigned int i = 0; i < subVector.size(); i++)
+            {
+                std::string pair = subVector[i];
+                std::string param = Common::getInstance()->FnBiteString(pair, '=');
+                std::string value = pair;
+
+                if (param == "cardNo")
+                {
+                    cardNo = value;
+                }
+
+                if (param == "orderId")
+                {
+                    orderId = value;
+                }
+            }
+
+            // Process result
+            std::ostringstream oss;
+            oss << "cardNo=" << cardNo;
+            oss << ", orderId=" << orderId;
+            writelog(oss.str(), "OPR");
+        }
+        catch (const std::exception& ex)
+        {
+            std::ostringstream oss;
+            oss << "Exception : " << ex.what();
+            writelog(oss.str(), "OPR");
+        }
+    }
+}

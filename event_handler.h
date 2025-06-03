@@ -94,4 +94,11 @@ private:
 
     // Barcode Scanner Event Handler
     bool handleBarcodeReceived(const BaseEvent* event);
+
+    // Touch N Go Reader Event Handler
+    bool handleTnGPayRequest(const BaseEvent* event);
+    bool handleTnGPayCancelRequest(const BaseEvent* event);
+    bool handleTnGEnableReaderRequest(const BaseEvent* event);
+    bool handleTnGPayResultReceived(const BaseEvent* event);
+    bool handleTnGCardNumReceived(const BaseEvent* event);
 };

@@ -79,7 +79,16 @@ std::map<std::string, EventHandler::EventFunction> EventHandler::eventMap =
     {   "Evt_handlePrinterStatus"               ,std::bind(&EventHandler::handlePrinterStatus              ,eventHandler_, std::placeholders::_1) },
 
     // Barcode Scanner Event
-    {   "Evt_handleBarcodeReceived"             ,std::bind(&EventHandler::handleBarcodeReceived            ,eventHandler_, std::placeholders::_1) }
+    {   "Evt_handleBarcodeReceived"             ,std::bind(&EventHandler::handleBarcodeReceived            ,eventHandler_, std::placeholders::_1) },
+
+    // Touch N Go Reader Event
+    // Touch N Go Reader Request Event
+    {   "Evt_handleTnGPayRequest"               ,std::bind(&EventHandler::handleTnGPayRequest              ,eventHandler_, std::placeholders::_1) },
+    {   "Evt_handleTnGPayCancelRequest"         ,std::bind(&EventHandler::handleTnGPayCancelRequest        ,eventHandler_, std::placeholders::_1) },
+    {   "Evt_handleTnGEnableReaderRequest"      ,std::bind(&EventHandler::handleTnGEnableReaderRequest     ,eventHandler_, std::placeholders::_1) },
+    // Touch N Go Reader Response Event
+    {   "Evt_handleTnGPayResultReceived"        ,std::bind(&EventHandler::handleTnGPayResultReceived       ,eventHandler_, std::placeholders::_1) },
+    {   "Evt_handleTnGCardNumReceived"          ,std::bind(&EventHandler::handleTnGCardNumReceived         ,eventHandler_, std::placeholders::_1) }
 };
 
 EventHandler::EventHandler()
@@ -1740,6 +1749,174 @@ bool EventHandler::handleBarcodeReceived(const BaseEvent* event)
         Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
         // process barcode data
         operation::getInstance()->ProcessBarcodeData(strEvent->data);
+
+    }
+    else
+    {
+        std::stringstream ss;
+        ss << __func__ << " Event Data casting failed.";
+        Logger::getInstance()->FnLog(ss.str());
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+        ret = false;
+    }
+
+    return ret;
+}
+
+bool EventHandler::handleTnGPayRequest(const BaseEvent* event)
+{
+    bool ret = true;
+
+    const Event<bool>* boolEvent = dynamic_cast<const Event<bool>*>(event);
+
+    if (boolEvent != nullptr)
+    {
+        bool value = boolEvent->data;
+
+        std::stringstream ss;
+        ss << __func__ << " Successfully, Event Data : " << value;
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+
+        // Handle Touch N Go Reader Pay Request
+        if (value)
+        {
+            // Request Success
+            operation::getInstance()->HandlePBSError(UPOSNoError);
+        }
+        else
+        {
+            // Request Fail
+            operation::getInstance()->HandlePBSError(UPOSError);
+        }
+    }
+    else
+    {
+        std::stringstream ss;
+        ss << __func__ << " Event Data casting failed.";
+        Logger::getInstance()->FnLog(ss.str());
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+        ret = false;
+    }
+
+    return ret;
+}
+
+bool EventHandler::handleTnGPayCancelRequest(const BaseEvent* event)
+{
+    bool ret = true;
+
+    const Event<bool>* boolEvent = dynamic_cast<const Event<bool>*>(event);
+
+    if (boolEvent != nullptr)
+    {
+        bool value = boolEvent->data;
+
+        std::stringstream ss;
+        ss << __func__ << " Successfully, Event Data : " << value;
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+
+        // Handle Touch N Go Reader Pay Cancel Request
+        if (value)
+        {
+            // Request Success
+            operation::getInstance()->HandlePBSError(UPOSNoError);
+        }
+        else
+        {
+            // Request Fail
+            operation::getInstance()->HandlePBSError(UPOSError);
+        }
+    }
+    else
+    {
+        std::stringstream ss;
+        ss << __func__ << " Event Data casting failed.";
+        Logger::getInstance()->FnLog(ss.str());
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+        ret = false;
+    }
+
+    return ret;
+}
+
+bool EventHandler::handleTnGEnableReaderRequest(const BaseEvent* event)
+{
+    bool ret = true;
+
+    const Event<bool>* boolEvent = dynamic_cast<const Event<bool>*>(event);
+
+    if (boolEvent != nullptr)
+    {
+        bool value = boolEvent->data;
+
+        std::stringstream ss;
+        ss << __func__ << " Successfully, Event Data : " << value;
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+
+        // Handle Touch N Go Reader Enable Reader Request
+        if (value)
+        {
+            // Request Success
+            operation::getInstance()->HandlePBSError(UPOSNoError);
+        }
+        else
+        {
+            // Request Fail
+            operation::getInstance()->HandlePBSError(UPOSError);
+        }
+    }
+    else
+    {
+        std::stringstream ss;
+        ss << __func__ << " Event Data casting failed.";
+        Logger::getInstance()->FnLog(ss.str());
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+        ret = false;
+    }
+
+    return ret;
+}
+
+bool EventHandler::handleTnGPayResultReceived(const BaseEvent* event)
+{
+    bool ret = true;
+
+    const Event<std::string>* strEvent = dynamic_cast<const Event<std::string>*>(event);
+
+    if (strEvent != nullptr)
+    {
+        std::stringstream ss;
+        ss << __func__ << " Successfully, Event Data : " << strEvent->data;
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+        // process Touch N Go Pay Result Received
+        operation::getInstance()->processTnGResponse("PayResult", strEvent->data);
+
+    }
+    else
+    {
+        std::stringstream ss;
+        ss << __func__ << " Event Data casting failed.";
+        Logger::getInstance()->FnLog(ss.str());
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+        ret = false;
+    }
+
+    return ret;
+}
+
+bool EventHandler::handleTnGCardNumReceived(const BaseEvent* event)
+{
+    bool ret = true;
+
+    const Event<std::string>* strEvent = dynamic_cast<const Event<std::string>*>(event);
+
+    if (strEvent != nullptr)
+    {
+        std::stringstream ss;
+        ss << __func__ << " Successfully, Event Data : " << strEvent->data;
+        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
+        // process Touch N Go Card Number Received
+        operation::getInstance()->processTnGResponse("TnGCardNumResult", strEvent->data);
 
     }
     else
