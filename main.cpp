@@ -19,7 +19,6 @@
 #include "odbc.h"
 #include "structuredata.h"
 #include "operation.h"
-#include "printer.h"
 #include "udp.h"
 #include <filesystem>
 
@@ -351,7 +350,6 @@ int main (int agrc, char* argv[])
 
     // Perform cleanup actions after all threads have joined
     EventManager::getInstance()->FnStopEventThread();
-    Printer::getInstance()->FnPrinterClose();
     Lpr::getInstance()->FnLprClose();
 
     return 0;

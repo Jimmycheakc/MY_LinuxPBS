@@ -3302,11 +3302,6 @@ DBError db::loadParam()
 			{
 				try
 				{
-					if (readerItem.GetDataItem(0) == "commportprinter")
-					{
-						operation::getInstance()->tParas.giCommPortPrinter = std::stoi(readerItem.GetDataItem(1));
-					}
-
 					if (readerItem.GetDataItem(0) == "EPS")
 					{
 						operation::getInstance()->tParas.giEPS = std::stoi(readerItem.GetDataItem(1));
@@ -4161,38 +4156,6 @@ DBError db::loadEntrymessage(std::vector<ReaderItem>& selResult)
 					}
 				}
 
-				if (readerItem.GetDataItem(0) == "PrinterError")
-				{
-					operation::getInstance()->tMsg.Msg_PrinterError[0] = readerItem.GetDataItem(1);
-					operation::getInstance()->tMsg.Msg_PrinterError[1] = readerItem.GetDataItem(1);
-				}
-
-				// Update LCD Message
-				if (readerItem.GetDataItem(0) == "CPrinterError")
-				{
-					if ((!readerItem.GetDataItem(1).empty()) && (boost::algorithm::to_lower_copy(readerItem.GetDataItem(1)) != "null"))
-					{
-						operation::getInstance()->tMsg.Msg_PrinterError[1].clear();
-						operation::getInstance()->tMsg.Msg_PrinterError[1] = readerItem.GetDataItem(1);
-					}
-				}
-
-				if (readerItem.GetDataItem(0) == "PrintingReceipt")
-				{
-					operation::getInstance()->tMsg.Msg_PrintingReceipt[0] = readerItem.GetDataItem(1);
-					operation::getInstance()->tMsg.Msg_PrintingReceipt[1] = readerItem.GetDataItem(1);
-				}
-
-				// Update LCD Message
-				if (readerItem.GetDataItem(0) == "CPrintingReceipt")
-				{
-					if ((!readerItem.GetDataItem(1).empty()) && (boost::algorithm::to_lower_copy(readerItem.GetDataItem(1)) != "null"))
-					{
-						operation::getInstance()->tMsg.Msg_PrintingReceipt[1].clear();
-						operation::getInstance()->tMsg.Msg_PrintingReceipt[1] = readerItem.GetDataItem(1);
-					}
-				}
-
 				if (readerItem.GetDataItem(0) == "Processing")
 				{
 					operation::getInstance()->tMsg.Msg_Processing[0] = readerItem.GetDataItem(1);
@@ -4921,22 +4884,6 @@ DBError db::loadExitLcdAndLedMessage(std::vector<ReaderItem>& selResult)
 					{
 						operation::getInstance()->tExitMsg.MsgExit_NoEntry[1].clear();
 						operation::getInstance()->tExitMsg.MsgExit_NoEntry[1] = readerItem.GetDataItem(1);
-					}
-				}
-
-				if (readerItem.GetDataItem(0) == "PrinterError")
-				{
-					operation::getInstance()->tExitMsg.MsgExit_PrinterError[0] = readerItem.GetDataItem(1);
-					operation::getInstance()->tExitMsg.MsgExit_PrinterError[1] = readerItem.GetDataItem(1);
-				}
-
-				// Update LCD Message
-				if (readerItem.GetDataItem(0) == "CPrinterError")
-				{
-					if ((!readerItem.GetDataItem(1).empty()) && (boost::algorithm::to_lower_copy(readerItem.GetDataItem(1)) != "null"))
-					{
-						operation::getInstance()->tExitMsg.MsgExit_PrinterError[1].clear();
-						operation::getInstance()->tExitMsg.MsgExit_PrinterError[1] = readerItem.GetDataItem(1);
 					}
 				}
 

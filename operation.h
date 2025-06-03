@@ -99,9 +99,6 @@ public:
     void EnableCashcard(bool bEnable);
     void ProcessBarcodeData(string sBarcodedata);
     void ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string sImageLocation);
-    void PrintTR(bool bForSeason = false);
-    void PrintReceipt();
-    void RetryEntryInq(int iRetryType);
     void DebitOK(const std::string& sIUNO, const std::string& sCardNo, 
                 const std::string& sPaidAmt = "", const std::string& sBal = "",
                 int iCardType = 0, const std::string& sTopupAmt = "",

@@ -515,7 +515,6 @@ struct  tParas_Struct
 	int giEPS;
 
 	//-----comport 
-	int giCommPortPrinter;			// DB Loaded: CommPortPrinter
 	int giCommPortLED;				// DB Loaded: CommPortLED
 	int giCommportLED401;			// DB Loaded: commportled401
 	int giCommPortLED2;				// *DB Loaded: commportled2, but not use
@@ -672,8 +671,6 @@ struct  tMsg_Struct
 	std::string Msg_NoIU[2];
 	std::string Msg_NoNightParking2LED[2];
 	std::string Msg_Offline[2];
-	std::string Msg_PrinterError[2];
-	std::string Msg_PrintingReceipt[2];
 	std::string Msg_Processing[2];
 	std::string Msg_ReaderCommError[2];
 	std::string Msg_ReaderError[2];
@@ -723,7 +720,6 @@ struct tExitMsg_struct
 	std::string MsgExit_IUProblem[2];
 	std::string MsgExit_MasterSeason[2];
 	std::string MsgExit_NoEntry[2];
-	std::string MsgExit_PrinterError[2];
 	std::string MsgExit_RedemptionTicket[2];
 	std::string MsgExit_SeasonBlocked[2];
 	std::string MsgExit_SeasonExpired[2];

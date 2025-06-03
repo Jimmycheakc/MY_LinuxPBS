@@ -20,9 +20,6 @@ std::map<std::string, EventHandler::EventFunction> EventHandler::eventMap =
     // LPR Event
     {   "Evt_handleLPRReceive"                  ,std::bind(&EventHandler::handleLPRReceive                 ,eventHandler_, std::placeholders::_1) },
 
-    // Printer Event
-    {   "Evt_handlePrinterStatus"               ,std::bind(&EventHandler::handlePrinterStatus              ,eventHandler_, std::placeholders::_1) },
-
     // Barcode Scanner Event
     {   "Evt_handleBarcodeReceived"             ,std::bind(&EventHandler::handleBarcodeReceived            ,eventHandler_, std::placeholders::_1) },
 
@@ -224,18 +221,6 @@ bool EventHandler::handleDIOEvent(const BaseEvent* event)
                 db::getInstance()->AddSysEvent("Arm recovered successfully.");
                 break;
             }
-            case DIO::DIO_EVENT::PRINT_RECEIPT_ON_EVENT:
-            {
-                Logger::getInstance()->FnLog("DIO::DIO_EVENT::PRINT_RECEIPT_ON_EVENT");
-                if (operation::getInstance()->tExit.iflag4Receipt == 0 ) operation::getInstance()->tExit.iflag4Receipt = 1;
-                operation::getInstance()->PrintReceipt();
-                break;
-            }
-            case DIO::DIO_EVENT::PRINT_RECEIPT_OFF_EVENT:
-            {
-                Logger::getInstance()->FnLog("DIO::DIO_EVENT::PRINT_RECEIPT_OFF_EVENT");
-                break;
-            }
             case DIO::DIO_EVENT::BARRIER_OPEN_TOO_LONG_ON_EVENT:
             {
                 Logger::getInstance()->FnLog("DIO::DIO_EVENT::BARRIER_OPEN_TOO_LONG_ON_EVENT");
@@ -304,54 +289,6 @@ bool EventHandler::handleLPRReceive(const BaseEvent* event)
         ret = false;
     }
     
-    return ret;
-}
-
-bool EventHandler::handlePrinterStatus(const BaseEvent* event)
-{
-    bool ret = true;
-
-    const Event<int>* intEvent = dynamic_cast<const Event<int>*>(event);
-
-    if (intEvent != nullptr)
-    {
-        std::stringstream ss;
-        ss << __func__ << " Successfully, Event Data : " << intEvent->data;
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-
-        switch (intEvent->data)
-        {
-            case 0:
-            {
-                operation::getInstance()->HandlePBSError(PrinterNoError);
-                break;
-            }
-            case 1:
-            {
-                operation::getInstance()->HandlePBSError(PrinterNoPaper);
-                break;
-            }
-            case -1:
-            {
-                operation::getInstance()->HandlePBSError(PrinterError);
-                break;
-            }
-            default:
-            {
-                operation::getInstance()->HandlePBSError(PrinterError);
-                break;
-            }
-        }
-    }
-    else
-    {
-        std::stringstream ss;
-        ss << __func__ << " Event Data casting failed.";
-        Logger::getInstance()->FnLog(ss.str());
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-        ret = false;
-    }
-
     return ret;
 }
 

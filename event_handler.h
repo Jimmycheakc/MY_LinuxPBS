@@ -39,9 +39,6 @@ private:
     // LPR Event Handler
     bool handleLPRReceive(const BaseEvent* event);
 
-    // Printer Event Handler
-    bool handlePrinterStatus(const BaseEvent* event);
-
     // Barcode Scanner Event Handler
     bool handleBarcodeReceived(const BaseEvent* event);
 

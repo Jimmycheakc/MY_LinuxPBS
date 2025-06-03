@@ -89,7 +89,6 @@ private:
     int manual_open_barrier_di_;
     int lorry_sensor_di_;
     int arm_broken_di_;
-    int print_receipt_di_;
     int loop_a_di_last_val_;
     int loop_b_di_last_val_;
     int loop_c_di_last_val_;
@@ -100,7 +99,6 @@ private:
     int manual_open_barrier_di_last_val_;
     int lorry_sensor_di_last_val_;
     int arm_broken_di_last_val_;
-    int print_receipt_di_last_val_;
     int open_barrier_do_;
     int lcd_backlight_do_;
     int close_barrier_do_;

@@ -57,7 +57,6 @@ set(SOURCE_FILES
     operation.cpp
     tcp.cpp
     lpr.cpp
-    printer.cpp
     barcode_reader.cpp
     http_client.cpp
     http_server.cpp
