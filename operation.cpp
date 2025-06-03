@@ -24,7 +24,6 @@
 #include "dio.h"
 #include "lpr.h"
 #include "printer.h"
-#include "upt.h"
 #include "barcode_reader.h"
 #include "boost/algorithm/string.hpp"
 #include "touchngo_reader.h"
@@ -129,7 +128,6 @@ void operation::OperationInit(io_context& ioContext)
         tProcess.setIdleMsg(1, operation::getInstance()->tMsg.Msg_Idle[1]);
         //-------
         Clearme();
-        CheckReader();
         isOperationInitialized_.store(true);
         DIO::getInstance()->FnStartDIOMonitoring();
         SendMsg2Server("90",",,,,,Starting OK");
@@ -596,12 +594,6 @@ void operation::Initdevice(io_context& ioContext)
         LEDManager::getInstance()->createLED(ioContext, 9600, getSerialPort(std::to_string(tParas.giCommportLED401)), LED::LED614_MAX_CHAR_PER_ROW);
     }
 
-    if (tParas.giCommPortUPOS > 0 && gtStation.iType == tiExit)
-    {
-        Upt::getInstance()->FnUptInit(115200, getSerialPort(std::to_string(tParas.giCommPortUPOS)));
-        Upt::getInstance()->FnUptSendDeviceTimeSyncRequest();
-    }
-
     if (LCD::getInstance()->FnLCDInit())
     {
         pLCDIdleTimer_ = std::make_unique<boost::asio::deadline_timer>(ioContext);
@@ -845,7 +837,6 @@ void operation:: Setdefaultparameter()
     tProcess.gbLastPaidStatus.store(false);
     tProcess.glLastSerialNo = 0;
     //----
-    tProcess.gbUPOSStatus = Init;
     tProcess.giUPOSLoginCnt = 0;
     tProcess.giBarrierContinueOpened = 0;
 }
@@ -1894,51 +1885,12 @@ void operation:: EnableCashcard(bool bEnable)
     
     tProcess.sEnableReader = bEnable;
 
-     EnableUPOS(bEnable);
-
     if (bEnable == true){
         if (gtStation.iType == tiExit && tExit.sRedeemNo == "")  BARCODE_READER::getInstance()->FnBarcodeStartRead();
     }else 
     {
       BARCODE_READER::getInstance()->FnBarcodeStopRead();     
     } 
-
-}
-
-void operation:: CheckReader()
-{
-    if (tParas.giCommPortUPOS && tProcess.gbUPOSStatus != Init)
-    {
-        writelog("Check UPOS Status...", "OPR");
-        Upt::getInstance()->FnUptSendDeviceStatusRequest();
-        if (tPBSError[iUPOS].ErrNo == -1)
-        {
-            tPBSError[iUPOS].ErrNo = 0;
-        }
-       
-    }
-}
-
-void operation::EnableUPOS(bool bEnable)
-{
-    if (tParas.giCommPortUPOS == 0) return;
-
-    if (tProcess.gbUPOSStatus == Init) {
-        writelog("Wating for UPOS log on", "OPR");
-        return;
-    }
-    //-------- 
-    if (bEnable == true) {
-        if (tProcess.gbUPOSStatus == Enable) return;
-        if (tProcess.gbUPOSStatus != ReadCardTimeout) writelog("Send Card Detect Request to UPOS", "OPR");
-        Upt::getInstance()->FnUptSendCardDetectRequest();
-        tProcess.gbUPOSStatus = Enable;
-    }else{
-        if (tProcess.gbUPOSStatus == Disable) return;
-        writelog ("Disable UPOS Reader", "OPR");
-        Upt::getInstance()->FnUptSendDeviceCancelCommandRequest();
-        tProcess.gbUPOSStatus = Disable;
-    }
 
 }
 
@@ -1968,602 +1920,6 @@ void operation::ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string
     {
         if (gtStation.iType == tientry) db::getInstance()->updateEntryTrans(LPN,sTransid);
         else db::getInstance()->updateExitTrans(LPN,sTransid);
-    }
-}
-
-void operation::processUPT(Upt::UPT_CMD cmd, const std::string& eventData)
-{
-    //writelog ("Received Command from UPT:" + eventData, "LPT");
-    uint32_t msg_status = static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED);
-
-    try
-    {
-        std::vector<std::string> subVector = Common::getInstance()->FnParseString(eventData, ',');
-        for (unsigned int i = 0; i < subVector.size(); i++)
-        {
-            std::string pair = subVector[i];
-            std::string param = Common::getInstance()->FnBiteString(pair, '=');
-            std::string value = pair;
-
-            if (param == "msgStatus")
-            {
-                msg_status = static_cast<uint32_t>(std::stoul(value));
-            }
-        }
-    }
-    catch (const std::exception& ex)
-    {
-        std::ostringstream oss;
-        oss << "Exception : " << ex.what();
-        writelog(oss.str(), "OPR");
-    }
-
-    switch (cmd)
-    {
-        case Upt::UPT_CMD::DEVICE_STATUS_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_STATUS_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_STATUS_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::DEVICE_RESET_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_RESET_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_RESET_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::DEVICE_TIME_SYNC_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_TIME_SYNC_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_TIME_SYNC_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::DEVICE_LOGON_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_LOGON_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                     tProcess.gbUPOSStatus = Login;
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                   if  ( tProcess.giUPOSLoginCnt > 3) {
-                        HandlePBSError(UPOSError);
-                   }else{
-                        tProcess.giUPOSLoginCnt = tProcess.giUPOSLoginCnt  + 1;
-                        Upt::getInstance()->FnUptSendDeviceLogonRequest();
-                   }
-             
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_LOGON_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-                //--------
-                if  ( tProcess.giUPOSLoginCnt > 3) {
-                    HandlePBSError(UPOSError);
-                }else{
-                    tProcess.giUPOSLoginCnt = tProcess.giUPOSLoginCnt  + 1;
-                    Upt::getInstance()->FnUptSendDeviceLogonRequest();
-                }
-            }
-            break;
-        }
-        case Upt::UPT_CMD::DEVICE_TMS_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_TMS_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_TMS_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::DEVICE_SETTLEMENT_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_SETTLEMENT_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                    uint64_t total_amount = 0;
-                    uint64_t total_trans_count = 0;
-                    std::string TID = "";
-                    std::string MID = "";
-
-                    try
-                    {
-                        std::vector<std::string> subVector = Common::getInstance()->FnParseString(eventData, ',');
-                        for (unsigned int i = 0; i < subVector.size(); i++)
-                        {
-                            std::string pair = subVector[i];
-                            std::string param = Common::getInstance()->FnBiteString(pair, '=');
-                            std::string value = pair;
-
-                            if (param == "totalAmount")
-                            {
-                                total_amount = std::stoull(value);
-                            }
-                            else if (param == "totalTransCount")
-                            {
-                                total_trans_count = std::stoull(value);
-                            }
-                            else if (param == "TID")
-                            {
-                                TID = value;
-                            }
-                            else if (param == "MID")
-                            {
-                                MID = value;
-                            }
-                        }
-
-                        oss  << " | total amount : " << total_amount << " | total trans count : " << total_trans_count << " | TID : " << TID << " | MID : " << MID;
-                    }
-                    catch (const std::exception& ex)
-                    {
-                        oss << " | Exception : " << ex.what();
-                    }
-
-                    double dSettleTotalGrand = total_amount / 100.00f;
-                    std::string dtNow = Common::getInstance()->FnGetDateTimeFormat_yyyy_mm_dd_hh_mm_ss();
-                    std::string dtNow2 = Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
-                    std::string sSettleName = "UPT" + dtNow2 + Common::getInstance()->FnPadLeft0(2, gtStation.iSID);
-
-                    db::getInstance()->insertUPTFileSummary(dtNow, sSettleName, 2, total_trans_count, dSettleTotalGrand, 1, dtNow);
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_SETTLEMENT_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::DEVICE_RETRIEVE_LAST_SETTLEMENT_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_RETRIEVE_LAST_SETTLEMENT_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                    uint64_t total_amount = 0;
-                    uint64_t total_trans_count = 0;
-
-                    try
-                    {
-                        std::vector<std::string> subVector = Common::getInstance()->FnParseString(eventData, ',');
-                        for (unsigned int i = 0; i < subVector.size(); i++)
-                        {
-                            std::string pair = subVector[i];
-                            std::string param = Common::getInstance()->FnBiteString(pair, '=');
-                            std::string value = pair;
-
-                            if (param == "totalAmount")
-                            {
-                                total_amount = std::stoull(value);
-                            }
-                            else if (param == "totalTransCount")
-                            {
-                                total_trans_count = std::stoull(value);
-                            }
-                        }
-
-                        oss << " | total amount : " << total_amount << " | total trans count : " << total_trans_count;
-                    }
-                    catch (const std::exception& ex)
-                    {
-                        oss << " | Exception : " << ex.what();
-                    }
-
-                    double dSettleTotalGrand = total_amount / 100.00f;
-                    std::string dtNow = Common::getInstance()->FnGetDateTimeFormat_yyyy_mm_dd_hh_mm_ss();
-                    std::string dtNow2 = Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
-                    std::string sSettleName = "LastUPT" + dtNow2 + Common::getInstance()->FnPadLeft0(2, gtStation.iSID);
-
-                    db::getInstance()->insertUPTFileSummaryLastSettlement(dtNow, sSettleName, 1, total_trans_count, dSettleTotalGrand, 1, dtNow);
-                    Upt::getInstance()->FnUptSendDeviceSettlementNETSRequest();
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "DEVICE_RETRIEVE_LAST_SETTLEMENT_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::CARD_DETECT_REQUEST:
-        {
-            tProcess.gbUPOSStatus = Disable;
-            //----------
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "CARD_DETECT_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                    std::string card_type = "";
-                    std::string card_can = "";
-                    float card_balance = 0;
-
-                    try
-                    {
-                        std::vector<std::string> subVector = Common::getInstance()->FnParseString(eventData, ',');
-                        for (unsigned int i = 0; i < subVector.size(); i++)
-                        {
-                            std::string pair = subVector[i];
-                            std::string param = Common::getInstance()->FnBiteString(pair, '=');
-                            std::string value = pair;
-
-                            if (param == "cardType")
-                            {
-                                card_type = value;
-                            }
-                            else if (param == "cardCan")
-                            {
-                                card_can = value;
-                            }
-                            else if (param == "cardBalance")
-                            {
-                                card_balance = std::stof(value);
-                            }
-                        }
-
-                        oss << " | card type : " << card_type << " | card can : " << card_can << " | card balance : " << std::fixed << std::setprecision(2) << (card_balance/100.0);
-                         writelog(oss.str(), "OPR");
-                        //---------
-                        CheckIUorCardStatus(card_can,UPOS,card_can,std::stoi(card_type) + 6, std::round(card_balance)/100);
-                    }
-                    catch (const std::exception& ex)
-                    {
-                        oss << " | Exception : " << ex.what();
-                        writelog(oss.str(), "OPR");
-                    }
-                }
-                else if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::TIMEOUT))
-                {
-                    //Handle the cmd = 00000002 request response timeout
-                   // writelog("UPOS Reader read card timeout.", "OPR");
-                    if (tProcess.gbLoopApresent.load() == true && tExit.gbPaid == false){
-                        tProcess.gbUPOSStatus = ReadCardTimeout;
-                        EnableUPOS(true);
-                    }
-                }
-                else if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SOF_INVALID_CARD ))
-                {
-                    //Handle the cmd = 40000000 request response timeout
-                    writelog("Received Response code = 40000000", "OPR");
-                    if (tProcess.gbLoopApresent.load() == true && tExit.gbPaid == false && tExit.sPaidAmt > 0 && tExit.giDeductionStatus == WaitingCard){
-                        debitfromReader("", tExit.sPaidAmt , UPOS);
-                    }
-                }
-                else
-                {
-                   
-                }
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "CARD_DETECT_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::PAYMENT_MODE_AUTO_REQUEST:
-        {
-            tProcess.gbUPOSStatus = Disable;
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "PAYMENT_MODE_AUTO_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                    std::string card_can = "";
-                    uint64_t card_fee = 0;
-                    uint64_t card_balance = 0;
-                    std::string card_reference_no = "";
-                    std::string card_batch_no = "";
-                    std::string card_type = "";
-
-                    try
-                    {
-                        std::vector<std::string> subVector = Common::getInstance()->FnParseString(eventData, ',');
-                        for (unsigned int i = 0; i < subVector.size(); i++)
-                        {
-                            std::string pair = subVector[i];
-                            std::string param = Common::getInstance()->FnBiteString(pair, '=');
-                            std::string value = pair;
-
-                            if (param == "cardCan")
-                            {
-                                card_can = value;
-                            }
-                            else if (param == "cardFee")
-                            {
-                                if (value != "")
-                                {
-                                    card_fee = std::stoull(value);
-                                }
-                            }
-                            else if (param == "cardBalance")
-                            {
-                                if (value != "")
-                                {
-                                    card_balance = std::stoull(value);
-                                }
-                            }
-                            else if (param == "cardReferenceNo")
-                            {
-                                card_reference_no = value;
-
-                            }
-                            else if (param == "cardBatchNo")
-                            {
-                                card_batch_no = value;
-                            }
-                            else if (param == "cardType")
-                            {
-                                card_type = value;
-                            }
-                        }
-                        if (card_can == "") {
-                            card_can = Common::getInstance()->FnPadLeft0(2, gtStation.iSID) + "20" + card_reference_no;
-                            card_fee = tExit.sPaidAmt * 100;
-                        }
-                        oss << " | card type : " << card_type << " | card can : " << card_can << " | card fee : " << std::fixed << std::setprecision(2) << (card_fee / 100.0) << " | card balance : " << std::fixed << std::setprecision(2) << (card_balance / 100.0) << " | card reference no : " << card_reference_no << " | card batch no : " << card_batch_no;
-                        writelog(oss.str(), "OPR");
-                        operation::getInstance()->DebitOK("", card_can, Common::getInstance()->SetFeeFormat(card_fee / 100.0), Common::getInstance()->SetFeeFormat(card_balance / 100.0), std::stoi(card_type) + 6, "", UPOS, "");
-                    }
-                    catch (const std::exception& ex)
-                    {
-                        oss << " | Exception : " << ex.what();
-                        writelog(oss.str(), "OPR");
-                    }
-                }
-                else if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::TIMEOUT))
-                {
-                    //Handle the cmd = 00000002 request response timeout
-                    writelog("UPOS deduction timeout.", "OPR");
-                    if (tProcess.gbLoopApresent.load() == true && (tExit.gbPaid == false || tExit.giDeductionStatus == Doingdeduction))
-                    {
-                       
-                        tExit.giDeductionStatus = WaitingCard;
-                        EnableCashcard(true);
-                    }
-                    
-                }
-                else if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::CARD_EXPIRED))
-                {
-                    //Handle the cmd = 00000002 request response timeout
-                    writelog("Card Expired.", "OPR");
-                    tExit.giDeductionStatus = CardExpired;
-                    ShowLEDMsg("Card Expired!", "Card Expired!");
-                    SendMsg2Server ("90", tProcess.gsLastCardNo + ",,,,,Card Expired");
-                    EnableCashcard(true);
-                    break;
-                    
-                }
-                else if ((msg_status > static_cast<uint32_t>(Upt::MSG_STATUS::CARD_NOT_DETECTED)) 
-                        && (msg_status <= static_cast<uint32_t>(Upt::MSG_STATUS::CARD_DEBIT_UNCONFIRMED)))
-                {
-                        writelog("Card Fault.", "OPR");
-                        tExit.giDeductionStatus = CardFault;
-                        ShowLEDMsg("Card Fault!", "Card Fault!");
-                        SendMsg2Server ("90", tProcess.gsLastCardNo + ",,,,,Card Fault");
-                        EnableCashcard(true);
-                        break;
-                }
-                else {
-                        writelog("UPT Deduction Error.", "OPR");
-                        tExit.giDeductionStatus = WaitingCard;
-                        ShowLEDMsg("Deduction Error!", "Deduction Error!");
-                        SendMsg2Server ("90", tProcess.gsLastCardNo + ",,,,,Deduction Error");
-                        EnableCashcard(true);
-                    }
-
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "PAYMENT_MODE_AUTO_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-                //-------
-                writelog("UPT Deduction Error.", "OPR");
-                tExit.giDeductionStatus = WaitingCard;
-                tProcess.gbUPOSStatus = Disable;
-                ShowLEDMsg("Deduction Error!", "Deduction Error!");
-                SendMsg2Server ("90", tProcess.gsLastCardNo + ",,,,,Deduction Error");
-                EnableCashcard(true);
-            }
-            break;
-        }
-        case Upt::UPT_CMD::CANCEL_COMMAND_REQUEST:
-        {
-            if (msg_status != static_cast<uint32_t>(Upt::MSG_STATUS::PARSE_FAILED))
-            {
-                std::ostringstream oss;
-                oss << "CANCEL_COMMAND_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status);
-
-                if (msg_status == static_cast<uint32_t>(Upt::MSG_STATUS::SUCCESS))
-                {
-                    // Handle the cmd request response succeed
-                }
-                else
-                {
-                    // Handle the cmd request response failed
-                }
-
-                writelog(oss.str(), "OPR");
-            }
-            else
-            {
-                std::ostringstream oss;
-                oss << "CANCEL_COMMAND_REQUEST (UPOS CMD) | ";
-                oss << "msg status : " << std::to_string(msg_status) << " (PARSE_FAILED)";
-                writelog(oss.str(), "OPR");
-            }
-            break;
-        }
-        case Upt::UPT_CMD::TOP_UP_NETS_NCC_BY_NETS_EFT_REQUEST:
-        case Upt::UPT_CMD::TOP_UP_NETS_NFP_BY_NETS_EFT_REQUEST:
-        case Upt::UPT_CMD::DEVICE_RETRIEVE_LAST_TRANSACTION_STATUS_REQUEST:
-        case Upt::UPT_CMD::DEVICE_RESET_SEQUENCE_NUMBER_REQUEST:
-        case Upt::UPT_CMD::DEVICE_PROFILE_REQUEST:
-        case Upt::UPT_CMD::DEVICE_SOF_LIST_REQUEST:
-        case Upt::UPT_CMD::DEVICE_SOF_SET_PRIORITY_REQUEST:
-        case Upt::UPT_CMD::DEVICE_PRE_SETTLEMENT_REQUEST:
-        case Upt::UPT_CMD::MUTUAL_AUTHENTICATION_STEP_1_REQUEST:
-        case Upt::UPT_CMD::MUTUAL_AUTHENTICATION_STEP_2_REQUEST:
-        case Upt::UPT_CMD::CARD_DETAIL_REQUEST:
-        case Upt::UPT_CMD::CARD_HISTORICAL_LOG_REQUEST:
-        case Upt::UPT_CMD::PAYMENT_MODE_EFT_REQUEST:
-        case Upt::UPT_CMD::PAYMENT_MODE_EFT_NETS_QR_REQUEST:
-        case Upt::UPT_CMD::PAYMENT_MODE_BCA_REQUEST:
-        case Upt::UPT_CMD::PAYMENT_MODE_CREDIT_CARD_REQUEST:
-        case Upt::UPT_CMD::PAYMENT_MODE_NCC_REQUEST:
-        case Upt::UPT_CMD::PAYMENT_MODE_NFP_REQUEST:
-        case Upt::UPT_CMD::PAYMENT_MODE_EZ_LINK_REQUEST:
-        case Upt::UPT_CMD::PRE_AUTHORIZATION_REQUEST:
-        case Upt::UPT_CMD::PRE_AUTHORIZATION_COMPLETION_REQUEST:
-        case Upt::UPT_CMD::INSTALLATION_REQUEST:
-        case Upt::UPT_CMD::VOID_PAYMENT_REQUEST:
-        case Upt::UPT_CMD::REFUND_REQUEST:
-        case Upt::UPT_CMD::CASE_DEPOSIT_REQUEST:
-        case Upt::UPT_CMD::UOB_REQUEST:
-        {
-            // Note: Not implemeted. Possible implement in future.
-            break;
-        }
     }
 }
 
@@ -3115,7 +2471,7 @@ std::string operation::GetVTypeStr(int iVType)
         } 
        if (GfeeFormat(tExit.sPaidAmt) <= GfeeFormat(sCardBal))
         {
-            debitfromReader(tExit.sIUNo, tExit.sPaidAmt, iDevicetype,sCardType,sCardBal);
+            
         }
         else
         {
@@ -3142,7 +2498,6 @@ std::string operation::GetVTypeStr(int iVType)
             {
                 if (tExit.sPaidAmt > 0) {
                     if (iDevicetype == Ant) EnableCashcard(true);
-                    else debitfromReader(tExit.sIUNo, tExit.sPaidAmt, iDevicetype,sCardType,sCardBal);
                 } 
                 else PBSExit (sCheckNo,iDevicetype,sCardNo,sCardType,sCardBal);   
             }
@@ -3319,7 +2674,6 @@ std::string operation::GetVTypeStr(int iVType)
     {
         if(iDevicetype > Ant){
             if (GfeeFormat(tExit.sPaidAmt) <= GfeeFormat(sCardBal)){
-                 debitfromReader(tExit.sIUNo, tExit.sPaidAmt, iDevicetype,sCardType,sCardBal);
             }
             else{
                 tExit.giDeductionStatus = WaitingCard;
@@ -3341,38 +2695,6 @@ std::string operation::GetVTypeStr(int iVType)
     {
        CloseExitOperation(FreeParking);
     } 
-
-}
-
-void operation::debitfromReader(string CardNo, float sFee,DeviceType iDevicetype,int sCardType, float sCardBal)
-{
-    long glDebitAmt;
-    //---
-    tExit.giDeductionStatus = Doingdeduction;
-    tProcess.gbLastPaidStatus.store(false);
-    tProcess.gsLastCardNo = CardNo;
-    tProcess.gfLastCardBal= GfeeFormat(sCardBal);
-    tExit.sCardNo = CardNo;
-    tExit.iCardType = sCardType;
-    //------
-    glDebitAmt = sFee * 100;
-
-    //ShowLEDMsg("Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Please Wait...","Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Please Wait...");
-
-    if(iDevicetype == UPOS) {
-        writelog("Send deduction Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +  " to UPOS. ", "OPR");
-        writelog("UPOS batch number: " + Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss(), "OPR");
-        Upt::getInstance()->FnUptSendDeviceAutoPaymentRequest(glDebitAmt, Common::getInstance()->FnGetDateTimeFormat_yymmddhhmmss());
-        tProcess.gbUPOSStatus = Enable;
-        //------ stop LCSC
-    } 
-    else{
-        //----- send Cancel to UPOS
-        Upt::getInstance()->FnUptSendDeviceCancelCommandRequest();
-        tProcess.gbUPOSStatus = Disable;
-        writelog("Send deduction Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt)+ " to LCSC.", "OPR");
-        
-    }
 
 }
 
@@ -3640,7 +2962,6 @@ void operation::ticketScan(std::string skeyedNo)
         }
     }
 
-    if (tProcess.gbUPOSStatus == Enable) EnableUPOS(false);
     //--------
     if (skeyedNo.length() >= 12)
     {

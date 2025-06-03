@@ -5,7 +5,6 @@
 #include <string>
 #include <thread>
 #include "boost/asio.hpp"
-#include "crc.h"
 #include "common.h"
 #include "dio.h"
 #include "gpio.h"
@@ -14,7 +13,6 @@
 #include "led.h"
 #include "log.h"
 #include "system_info.h"
-#include "upt.h"
 #include "event_manager.h"
 #include "event_handler.h"
 #include "db.h"
@@ -38,9 +36,6 @@ void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::
     static auto lastSyncTime = std::chrono::steady_clock::now();
     auto durationSinceSync = std::chrono::duration_cast<std::chrono::hours>(start - lastSyncTime);
 
-    // Set the last UPOS settlement time
-    static std::string sLastUPTSettleTime = Common::getInstance()->FnGetDate();
-
     //------ timer process start
     if (operation::getInstance()->FnIsOperationInitialized())
     {
@@ -56,8 +51,6 @@ void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::
             {
                 db::getInstance()->synccentraltime();
                 lastSyncTime = start;
-                //-----
-                operation::getInstance()->CheckReader();
             }
 
             // check central DB
@@ -71,14 +64,6 @@ void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::
             {
                 db::getInstance()->HouseKeeping();
                 operation::getInstance()->tProcess.giLastHousekeepingDate = Common::getInstance()->FnGetCurrentDay();
-            }
-
-            // Check the UPOS last settlement date
-            std::string sCurrentDate = Common::getInstance()->FnGetDate();
-            if (sLastUPTSettleTime != sCurrentDate)
-            {
-                Upt::getInstance()->FnUptSendDeviceRetrieveLastSettlementRequest();
-                sLastUPTSettleTime = sCurrentDate;
             }
         }
         // Send DateTime to Monitor
@@ -366,7 +351,6 @@ int main (int agrc, char* argv[])
 
     // Perform cleanup actions after all threads have joined
     EventManager::getInstance()->FnStopEventThread();
-    Upt::getInstance()->FnUptClose();
     Printer::getInstance()->FnPrinterClose();
     Lpr::getInstance()->FnLprClose();
 

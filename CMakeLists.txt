@@ -43,9 +43,7 @@ set(SOURCE_FILES
     system_info.cpp
     log.cpp
     ini_parser.cpp
-    crc.cpp
     gpio.cpp
-    upt.cpp
     lcd.cpp
     led.cpp
     event_manager.cpp

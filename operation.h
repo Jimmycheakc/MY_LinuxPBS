@@ -9,7 +9,6 @@
 #include "db.h"
 #include "udp.h"
 #include "lpr.h"
-#include "upt.h"
 
 typedef enum : unsigned int
 {
@@ -66,7 +65,6 @@ public:
     void ShowLEDMsg(string LEDMsg, string LCDMsg);
     void PBSEntry(string sIU);
     void PBSExit(string sIU,DeviceType iDevicetype,string sCardNo = "", int sCardType = 0,float sCardBal = 0);
-    void debitfromReader(string CardNo, float sFee, DeviceType iDevicetype,int sCardType = 0,float sCardBal = 0);
     void CheckIUorCardStatus(string sCheckNo, DeviceType iDevicetype,string sCardNo = "",int sCardType = 0,float sCardBal = 0);
     float CalFeeRAM(string eTime, string payTime,int iTransType, bool bCheckGT = false);
     void Setdefaultparameter();
@@ -99,11 +97,8 @@ public:
     bool LoadedparameterOK();
     int  GetSeasonTransType(int VehicleType, int SeasonType, int TransType);
     void EnableCashcard(bool bEnable);
-    void EnableUPOS(bool bEnable);
     void ProcessBarcodeData(string sBarcodedata);
-    void CheckReader();
     void ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string sImageLocation);
-    void processUPT(Upt::UPT_CMD cmd, const std::string& eventData);
     void PrintTR(bool bForSeason = false);
     void PrintReceipt();
     void RetryEntryInq(int iRetryType);

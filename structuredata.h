@@ -34,15 +34,6 @@ typedef enum {
 
 }eCheckSeason;
 
-typedef enum {
-	Init = 0,
-	Login = 1,  	
-	Enable = 2,      
-	Disable = 3,
-	ReadCardTimeout = 4      
-	
-}eUPOSStatus;
-
 typedef enum : unsigned int
 {
     init					= 0,
@@ -393,7 +384,6 @@ struct  tProcess_Struct
 	string gsLastCardNo;
 	float gfLastCardBal;
 	std::atomic<bool> gbLastPaidStatus;
-	eUPOSStatus gbUPOSStatus;
 	int giUPOSLoginCnt;
 	//------
 	std::string gsLastDebitFailTime;
@@ -525,7 +515,6 @@ struct  tParas_Struct
 	int giEPS;
 
 	//-----comport 
-	int giCommPortUPOS;
 	int giCommPortPrinter;			// DB Loaded: CommPortPrinter
 	int giCommPortLED;				// DB Loaded: CommPortLED
 	int giCommportLED401;			// DB Loaded: commportled401

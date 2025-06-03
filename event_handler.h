@@ -39,18 +39,6 @@ private:
     // LPR Event Handler
     bool handleLPRReceive(const BaseEvent* event);
 
-    // Upos Terminal Event Handler
-    bool handleUPTCardDetect(const BaseEvent* event);
-    bool handleUPTPaymentAuto(const BaseEvent* event);
-    bool handleUPTDeviceSettlement(const BaseEvent* event);
-    bool handleUPTRetrieveLastSettlement(const BaseEvent* event);
-    bool handleUPTDeviceLogon(const BaseEvent* event);
-    bool handleUPTDeviceStatus(const BaseEvent* event);
-    bool handleUPTDeviceTimeSync(const BaseEvent* event);
-    bool handleUPTDeviceTMS(const BaseEvent* event);
-    bool handleUPTDeviceReset(const BaseEvent* event);
-    bool handleUPTCommandCancel(const BaseEvent* event);
-
     // Printer Event Handler
     bool handlePrinterStatus(const BaseEvent* event);
 
