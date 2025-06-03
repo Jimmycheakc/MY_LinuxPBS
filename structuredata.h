@@ -525,7 +525,6 @@ struct  tParas_Struct
 	int giEPS;
 
 	//-----comport 
-	int giCommPortAntenna;			// DB Loaded: CommPortAntenna
 	int giCommPortLCSC;				// DB Loaded: commportlcsc
 	int giCommPortKDEReader;		// DB Loaded: CommPortReader
 	int giCommPortUPOS;

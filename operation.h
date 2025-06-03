@@ -110,7 +110,6 @@ public:
     void KSM_CardTakeAway();
     void handleKSM_EnableError();
     void handleKSM_CardReadError();
-    bool AntennaOK();
     void CheckReader();
     void ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string sImageLocation);
     void processUPT(Upt::UPT_CMD cmd, const std::string& eventData);

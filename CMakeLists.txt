@@ -48,7 +48,6 @@ set(SOURCE_FILES
     upt.cpp
     lcd.cpp
     led.cpp
-    antenna.cpp
     event_manager.cpp
     event_handler.cpp
     lcsc.cpp

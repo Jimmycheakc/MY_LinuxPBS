@@ -3302,11 +3302,6 @@ DBError db::loadParam()
 			{
 				try
 				{
-					if (readerItem.GetDataItem(0) == "CommPortAntenna")
-					{
-						operation::getInstance()->tParas.giCommPortAntenna = std::stoi(readerItem.GetDataItem(1));
-					}
-
 					if (readerItem.GetDataItem(0) == "commportlcsc")
 					{
 						operation::getInstance()->tParas.giCommPortLCSC = std::stoi(readerItem.GetDataItem(1));

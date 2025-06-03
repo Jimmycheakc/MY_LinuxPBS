@@ -4,7 +4,6 @@
 #include <sstream>
 #include <string>
 #include <thread>
-#include "antenna.h"
 #include "boost/asio.hpp"
 #include "crc.h"
 #include "common.h"

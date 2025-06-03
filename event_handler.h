@@ -32,10 +32,6 @@ private:
     static EventHandler* eventHandler_;
     static std::mutex mutex_;
     EventHandler();
-    // Antenna Event Handler
-    bool handleAntennaFail(const BaseEvent* event);
-    bool handleAntennaPower(const BaseEvent* event);
-    bool handleAntennaIUCome(const BaseEvent* event);
 
     // LCSC Event Handler
     bool handleLcscReaderStatus(const BaseEvent* event);

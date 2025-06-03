@@ -2,7 +2,6 @@
 #include <memory>
 #include <string>
 #include <sstream>
-#include "antenna.h"
 #include "common.h"
 #include "dio.h"
 #include "event_handler.h"
@@ -18,11 +17,6 @@ std::mutex EventHandler::mutex_;
 
 std::map<std::string, EventHandler::EventFunction> EventHandler::eventMap = 
 {
-    // Antenna Event
-    {   "Evt_AntennaFail"                       ,std::bind(&EventHandler::handleAntennaFail                ,eventHandler_, std::placeholders::_1) },
-    {   "Evt_AntennaPower"                      ,std::bind(&EventHandler::handleAntennaPower               ,eventHandler_, std::placeholders::_1) },
-    {   "Evt_AntennaIUCome"                     ,std::bind(&EventHandler::handleAntennaIUCome              ,eventHandler_, std::placeholders::_1) },
-
     // LCSC Event
     {   "Evt_LcscReaderStatus"                  ,std::bind(&EventHandler::handleLcscReaderStatus           ,eventHandler_, std::placeholders::_1) },
     {   "Evt_LcscReaderLogin"                   ,std::bind(&EventHandler::handleLcscReaderLogin            ,eventHandler_, std::placeholders::_1) },
@@ -144,124 +138,6 @@ void EventHandler::FnHandleEvents(const std::string& eventName, const BaseEvent*
     }
 }
 
-bool EventHandler::handleAntennaFail(const BaseEvent* event)
-{
-    bool ret = true;
-
-    const Event<int>* intEvent = dynamic_cast<const Event<int>*>(event);
-
-    if (intEvent != nullptr)
-    {
-        int value = intEvent->data;
-        
-        std::stringstream ss;
-        ss << __func__ << " Successfully, Event Data : " << value;
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-
-        if (value == 2 && operation::getInstance()->tProcess.gbLoopApresent.load()) 
-        { 
-            if (operation::getInstance()->tProcess.sEnableReader == false)
-           {
-                operation :: getInstance()->writelog("No IU detected!", "OPR");
-                operation::getInstance()->ShowLEDMsg("No IU Detected!^Insert/Tap Card", "No IU Detected!^Insert/Tap Card");
-                operation::getInstance()->EnableCashcard(true);
-           //     Antenna::getInstance()->FnAntennaStopRead();
-
-            }
-        }
-        else  
-        {
-            if (value < 2)
-            {
-                operation:: getInstance()->HandlePBSError(AntennaError,value);
-            }
-        }
-    }
-    else
-    {
-        std::stringstream ss;
-        ss << __func__ << " Event Data casting failed.";
-        Logger::getInstance()->FnLog(ss.str());
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-        ret = false;
-    }
-    
-    return ret;
-}
-
-bool EventHandler::handleAntennaPower(const BaseEvent* event)
-{
-    bool ret = true;
-
-    const Event<bool>* boolEvent = dynamic_cast<const Event<bool>*>(event);
-
-    if (boolEvent != nullptr)
-    {
-        bool value = boolEvent->data;
-
-        std::stringstream ss;
-        ss << __func__ << " Successfully, Event Data : " << value;
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-
-        operation::getInstance()->HandlePBSError(AntennaPowerOnOff,int(boolEvent->data));
-    }
-    else
-    {
-        std::stringstream ss;
-        ss << __func__ << " Event Data casting failed.";
-        Logger::getInstance()->FnLog(ss.str());
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-        ret = false;
-    }
-
-    return ret;
-}
-
-bool EventHandler::handleAntennaIUCome(const BaseEvent* event)
-{
-    bool ret = true;
-
-    const Event<std::string>* boolEvent = dynamic_cast<const Event<std::string>*>(event);
-
-    if (boolEvent != nullptr)
-    {
-        std::string value = boolEvent->data;
-
-        std::stringstream ss;
-        ss << __func__ << " Successfully, Event Data : " << value;
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-
-        auto sameAsLastIUDuration = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - operation::getInstance()->tProcess.getLastIUEntryTime());
-
-        if ((value.length() == 10) && (operation::getInstance()->tProcess.getLastIUNo() == value)
-            && (sameAsLastIUDuration.count() <= operation::getInstance()->tParas.giMaxTransInterval) && (operation::getInstance()->gtStation.iType == tientry))
-        {
-            std::stringstream ss;
-            ss << "Same as last IU, duration :" << sameAsLastIUDuration.count() << " less than Maximum interval: " << operation::getInstance()->tParas.giMaxTransInterval;
-            Logger::getInstance()->FnLog(ss.str());
-            operation::getInstance()->Openbarrier();
-        }
-        else
-        {
-            operation::getInstance()->VehicleCome(value);
-        }
-
-        if (operation::getInstance()->tPBSError[iAntenna].ErrNo != 0)
-        {
-            operation:: getInstance()->HandlePBSError(AntennaNoError);
-        }
-    }
-    else
-    {
-        std::stringstream ss;
-        ss << __func__ << " Event Data casting failed.";
-        Logger::getInstance()->FnLog(ss.str());
-        Logger::getInstance()->FnLog(ss.str(), eventLogFileName, "EVT");
-        ret = false;
-    }
-
-    return ret;
-}
 
 bool EventHandler::handleLcscReaderStatus(const BaseEvent* event)
 {

@@ -21,7 +21,6 @@
 #include "lcd.h"
 #include "log.h"
 #include "udp.h"
-#include "antenna.h"
 #include "lcsc.h"
 #include "dio.h"
 #include "ksm_reader.h"
@@ -350,7 +349,6 @@ void operation::LoopACome()
     Lpr::getInstance()->FnSendTransIDToLPR(tEntry.gsTransID, useFrontCamera);
 
     //----
-    if (AntennaOK() == true) Antenna::getInstance()->FnAntennaSendReadIUCmd();
     ShowLEDMsg("Reading IU...^Please wait", "Reading IU...^Please wait");
  //   operation::getInstance()->EnableCashcard(true);
 }
@@ -364,16 +362,6 @@ void operation::LoopAGone()
 
     //------
     DIO::getInstance()->FnSetLCDBacklight(0);
-     //
-    if (gtStation.iType == tientry ) {
-        if (tEntry.sIUTKNo == "") {
-            Antenna::getInstance()->FnAntennaStopRead();
-        }
-    }else{
-        if (tExit.sIUNo == "") {
-            Antenna::getInstance()->FnAntennaStopRead();
-        }
-    }
     EnableCashcard(false);
 }
 void operation::LoopCCome()
@@ -399,13 +387,6 @@ void operation::VehicleCome(string sNo)
 
     if (sNo == "") return;
     //--------------------
-    if (sNo.length() == 10) {
-        writelog ("Received IU: "+sNo,"OPR");
-    }
-    else {
-        writelog ("Received Card: "+sNo,"OPR");
-        Antenna::getInstance()->FnAntennaStopRead();
-    }
 
     if (sNo.length()==10 && sNo == tProcess.gsDefaultIU) {
         SendMsg2Server ("90",sNo+",,,,,Default IU");
@@ -597,11 +578,6 @@ std::string operation::getSerialPort(const std::string& key)
 
 void operation::Initdevice(io_context& ioContext)
 {
-    if (tParas.giCommPortAntenna > 0)
-    {
-        Antenna::getInstance()->FnAntennaInit(ioContext, 19200, getSerialPort(std::to_string(tParas.giCommPortAntenna)));
-    }
-
     if (tParas.giCommPortLCSC > 0)
     {
         int iRet = LCSCReader::getInstance()->FnLCSCReaderInit(115200, getSerialPort(std::to_string(tParas.giCommPortLCSC)));
@@ -1345,41 +1321,6 @@ void operation::HandlePBSError(EPSError iEPSErr, int iErrCode)
     string sCmd = "";
     
     switch(iEPSErr){
-        case AntennaNoError:
-        {
-            if (tPBSError[iAntenna].ErrNo < 0) {
-                sCmd = "03";
-                sErrMsg = "Antenna OK";
-            }
-            tPBSError[iAntenna].ErrNo = 0;
-            break;
-        }
-        case AntennaError:
-        {
-            tPBSError[iAntenna].ErrNo = -1;
-            tPBSError[iAntenna].ErrCode = iErrCode;
-            tPBSError[iAntenna].ErrMsg = "Antenna Error: " + std::to_string(iErrCode);
-            sErrMsg = tPBSError[iAntenna].ErrMsg;
-            sCmd = "03";
-            break;
-        }
-        case AntennaPowerOnOff:
-        {
-            if (iErrCode == 1) {
-                tPBSError[iAntenna].ErrNo = 0;
-                tPBSError[iAntenna].ErrCode = 1;
-                tPBSError[iAntenna].ErrMsg = "Antenna: Power ON";
-            }
-            else{
-                tPBSError[iAntenna].ErrNo = -2;
-                tPBSError[iAntenna].ErrCode = 0;
-                tPBSError[iAntenna].ErrMsg = "Antenna Error: Power OFF";
-            
-            }
-            sErrMsg = tPBSError[iAntenna].ErrMsg;
-            sCmd = "03";
-            break;
-        }
         case PrinterNoError:
         {   
             if (tPBSError[1].ErrNo < 0){
@@ -2292,7 +2233,6 @@ void operation::ProcessLCSC(const std::string& eventData)
             else
             {
                 EnableUPOS(false);
-                Antenna::getInstance()->FnAntennaStopRead();
                 CheckIUorCardStatus(sCardNo, LCSC, sCardNo,LCSC, std::stof(sBal)/100);
             }
 
@@ -2572,27 +2512,6 @@ void operation::KSM_CardInfo(string sKSMCardNo, long sKSMCardBal, bool sKSMCardE
         {
             Openbarrier();
             EnableCashcard(false);
-        }
-    }
-}
-
-bool operation::AntennaOK() {
-    
-    if (tParas.giEPS == 0) {
-        writelog ("Antenna: Non-EPS", "OPR");
-        return false;
-    } else {
-        if (tParas.giCommPortAntenna == 0) {
-            writelog("Antenna: Commport Not Set", "OPR");
-            return false;
-        } else {
-            if (tPBSError[iAntenna].ErrNo == 0) {
-                writelog("Antenna: OK", "OPR");
-                return true;
-            } else {
-                writelog("Antenna: Error=" + tPBSError[iAntenna].ErrMsg, "OPR");
-                return false;
-            }
         }
     }
 }
@@ -2985,7 +2904,6 @@ void operation::processUPT(Upt::UPT_CMD cmd, const std::string& eventData)
                          writelog(oss.str(), "OPR");
                         //---------
                         EnableLCSC(false);
-                        Antenna::getInstance()->FnAntennaStopRead();
                         CheckIUorCardStatus(card_can,UPOS,card_can,std::stoi(card_type) + 6, std::round(card_balance)/100);
                     }
                     catch (const std::exception& ex)
