@@ -525,7 +525,6 @@ struct  tParas_Struct
 	int giEPS;
 
 	//-----comport 
-	int giCommPortKDEReader;		// DB Loaded: CommPortReader
 	int giCommPortUPOS;
 	int giCommPortPrinter;			// DB Loaded: CommPortPrinter
 	int giCommPortLED;				// DB Loaded: CommPortLED

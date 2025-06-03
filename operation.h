@@ -99,14 +99,8 @@ public:
     bool LoadedparameterOK();
     int  GetSeasonTransType(int VehicleType, int SeasonType, int TransType);
     void EnableCashcard(bool bEnable);
-    void EnableKDE(bool bEnable);
     void EnableUPOS(bool bEnable);
     void ProcessBarcodeData(string sBarcodedata);
-    void KSM_CardIn();
-    void KSM_CardInfo(string sKSMCardNo, long sKSMCardBal, bool sKSMCardExpired);
-    void KSM_CardTakeAway();
-    void handleKSM_EnableError();
-    void handleKSM_CardReadError();
     void CheckReader();
     void ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string sImageLocation);
     void processUPT(Upt::UPT_CMD cmd, const std::string& eventData);

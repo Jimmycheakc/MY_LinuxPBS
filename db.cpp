@@ -3377,11 +3377,6 @@ DBError db::loadParam()
 						operation::getInstance()->tParas.giCommportLED401 = std::stoi(readerItem.GetDataItem(1));
 					}
 
-					if (readerItem.GetDataItem(0) == "commportreader")
-					{
-						operation::getInstance()->tParas.giCommPortKDEReader = std::stoi(readerItem.GetDataItem(1));
-					}
-
 					if (readerItem.GetDataItem(0) == "CommPortCPT")
 					{
 						operation::getInstance()->tParas.giCommPortUPOS = std::stoi(readerItem.GetDataItem(1));

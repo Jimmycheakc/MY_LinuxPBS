@@ -59,7 +59,6 @@ set(SOURCE_FILES
     operation.cpp
     tcp.cpp
     lpr.cpp
-    ksm_reader.cpp
     printer.cpp
     barcode_reader.cpp
     http_client.cpp

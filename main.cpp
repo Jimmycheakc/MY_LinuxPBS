@@ -23,7 +23,6 @@
 #include "operation.h"
 #include "printer.h"
 #include "udp.h"
-#include "ksm_reader.h"
 #include <filesystem>
 
 
@@ -368,7 +367,6 @@ int main (int agrc, char* argv[])
     // Perform cleanup actions after all threads have joined
     EventManager::getInstance()->FnStopEventThread();
     Upt::getInstance()->FnUptClose();
-    KSM_Reader::getInstance()->FnKSMReaderClose();
     Printer::getInstance()->FnPrinterClose();
     Lpr::getInstance()->FnLprClose();
 

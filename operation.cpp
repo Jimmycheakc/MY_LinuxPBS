@@ -22,7 +22,6 @@
 #include "log.h"
 #include "udp.h"
 #include "dio.h"
-#include "ksm_reader.h"
 #include "lpr.h"
 #include "printer.h"
 #include "upt.h"
@@ -595,16 +594,6 @@ void operation::Initdevice(io_context& ioContext)
     if (tParas.giCommportLED401 > 0)
     {
         LEDManager::getInstance()->createLED(ioContext, 9600, getSerialPort(std::to_string(tParas.giCommportLED401)), LED::LED614_MAX_CHAR_PER_ROW);
-    }
-    
-    if (tParas.giCommPortKDEReader > 0)
-    {
-        int iRet = KSM_Reader::getInstance()->FnKSMReaderInit(9600, getSerialPort(std::to_string(tParas.giCommPortKDEReader)));
-        //  -4 KDE comm port error
-        if (iRet == -4)
-        {
-            tPBSError[iReader].ErrNo = -4;
-        }
     }
 
     if (tParas.giCommPortUPOS > 0 && gtStation.iType == tiExit)
@@ -1905,7 +1894,6 @@ void operation:: EnableCashcard(bool bEnable)
     
     tProcess.sEnableReader = bEnable;
 
-     EnableKDE(bEnable);
      EnableUPOS(bEnable);
 
     if (bEnable == true){
@@ -1919,12 +1907,6 @@ void operation:: EnableCashcard(bool bEnable)
 
 void operation:: CheckReader()
 {
-    if (tPBSError[iReader].ErrNo == -1)
-    {
-        writelog("Check KDE Status ...", "OPR");
-        KSM_Reader::getInstance()->FnKSMReaderSendInit();
-    }
-
     if (tParas.giCommPortUPOS && tProcess.gbUPOSStatus != Init)
     {
         writelog("Check UPOS Status...", "OPR");
@@ -1934,32 +1916,6 @@ void operation:: CheckReader()
             tPBSError[iUPOS].ErrNo = 0;
         }
        
-    }
-}
-
-void operation::EnableKDE(bool bEnable)
-{
-    if (tParas.giCommPortKDEReader == 0) return;
-
-    if (tPBSError[iReader].ErrNo != 0) return;
-    //-----
-    if (bEnable == false)
-    {
-            //------
-        if (tProcess.giCardIsIn == 1 )
-        {
-            KSM_Reader::getInstance()->FnKSMReaderSendEjectToFront();
-        }
-        else
-        {
-            writelog ("Disable KDE Reader", "OPR");
-            KSM_Reader::getInstance()->FnKSMReaderEnable(bEnable);
-        }
-    }
-    else
-    {
-        writelog ("Enable KDE Reader", "OPR");
-        KSM_Reader::getInstance()->FnKSMReaderEnable(bEnable);
     }
 }
 
@@ -1990,80 +1946,6 @@ void operation::ProcessBarcodeData(string sBarcodedata)
 {
     BARCODE_READER::getInstance()->FnBarcodeStopRead();
     ticketScan(sBarcodedata);
-}
-
-void operation:: KSM_CardIn()
-{
-    int iRet;
-    //--------
-     ShowLEDMsg ("Card In^Please Wait ...", "Card In^Please Wait ...");
-    //--------
-    if (tPBSError[iReader].ErrNo != 0) {HandlePBSError(ReaderNoError);}
-    //---------
-    tProcess.giCardIsIn = 1;
-    KSM_Reader::getInstance()->FnKSMReaderReadCardInfo();
-}
-
-void operation::handleKSM_EnableError()
-{
-    writelog (__func__, "OPR");
-
-    if (tPBSError[iReader].ErrNo != -1)
-    {
-        HandlePBSError(ReaderError);
-    }
-}
-
-void operation::handleKSM_CardReadError()
-{
-    writelog (__func__, "OPR");
-
-    ShowLEDMsg (tMsg.Msg_CardReadingError[0], tMsg.Msg_CardReadingError[1]);
-    SendMsg2Server ("90", ",,,,,Wrong Card Insertion");
-    KSM_Reader::getInstance()->FnKSMReaderSendEjectToFront();
-}
-
-void operation::KSM_CardInfo(string sKSMCardNo, long sKSMCardBal, bool sKSMCardExpired)
- {  
-    
-    writelog ("Cashcard: " + sKSMCardNo, "OPR");
-    //------
-    tPBSError[iReader].ErrNo = 0;
-    if (sKSMCardNo == "" || sKSMCardNo.length()!= 16 || sKSMCardNo.substr(5,4) == "0005") {
-        ShowLEDMsg (tMsg.Msg_CardReadingError[0], tMsg.Msg_CardReadingError[1]);
-        SendMsg2Server ("90", ",,,,,Wrong Card Insertion");
-        KSM_Reader::getInstance()->FnKSMReaderSendEjectToFront();
-        return;
-    }
-    else { 
-        if (tEntry.sIUTKNo == "") VehicleCome(sKSMCardNo);
-        else  KSM_Reader::getInstance()->FnKSMReaderSendEjectToFront();
-    }
- }
-
- void operation:: KSM_CardTakeAway()
-{
-    writelog ("Card Take Away ", "OPR");
-    tProcess.giCardIsIn = 2;
-
-    if (tEntry.gbEntryOK == true)
-    {
-        ShowLEDMsg(tMsg.Msg_CardTaken[0],tMsg.Msg_CardTaken[1]);
-    }
-    else
-    {
-        if (tProcess.gbcarparkfull.load() == true && tEntry.sIUTKNo != "" ) return;
-        ShowLEDMsg(tMsg.Msg_InsertCashcard[0], tMsg.Msg_InsertCashcard[1]);   
-    }                    
-    //--------
-    if (gtStation.iType == tientry)
-    {
-        if (tEntry.gbEntryOK == true)
-        {
-            Openbarrier();
-            EnableCashcard(false);
-        }
-    }
 }
 
 void operation::ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string sImageLocation)
