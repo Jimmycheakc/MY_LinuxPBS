@@ -27,31 +27,38 @@ TnG_Reader* TnG_Reader::getInstance()
 
 void TnG_Reader::FnTnGReaderInit(const std::string& remoteServerHost, const std::string& remoteServerPort, const std::string& listenHost, const std::string& listenPort)
 {
-    Logger::getInstance()->FnCreateLogFile(logFileName_);
-    
-    remoteServerHost_ = remoteServerHost;
-    remoteServerPort_ = remoteServerPort;
-    listenHost_ = listenHost;
-    listenPort_ = listenPort;
+    try
+    {
+        Logger::getInstance()->FnCreateLogFile(logFileName_);
+        
+        remoteServerHost_ = remoteServerHost;
+        remoteServerPort_ = remoteServerPort;
+        listenHost_ = listenHost;
+        listenPort_ = listenPort;
 
-    auto const listen_address = boost::asio::ip::make_address(listenHost_);
-    auto const listen_port = static_cast<unsigned short>(std::stoi(listenPort_));
-    startIoContextThread();
+        auto const listen_address = boost::asio::ip::make_address(listenHost_);
+        auto const listen_port = static_cast<unsigned short>(std::stoi(listenPort_));
+        startIoContextThread();
 
-    httpClient_ = std::make_shared<HttpClient>(ioContext_);
-    httpServer_ = std::make_shared<HttpServer>(ioContext_, boost::asio::ip::tcp::endpoint{listen_address, listen_port},
-                    std::bind(&TnG_Reader::serverHandleFailureCb, this, std::placeholders::_1),
-                    std::bind(&TnG_Reader::serverHandleRequestCb, this, std::placeholders::_1));
-    httpServer_->run();
-    
-    Logger::getInstance()->FnLog("Touch n Go Reader initialization completed.");
-    Logger::getInstance()->FnLog("Touch n Go Reader initialization completed.", logFileName_, "TNG");
-    
-    std::ostringstream oss;
-    oss << "Remote server host: " << remoteServerHost << ", Remote server port: " << remoteServerPort;
-    oss << ", Local server host: " << listenHost << ", Local server port: " << listenPort;
-    Logger::getInstance()->FnLog(oss.str());
-    Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+        httpClient_ = std::make_shared<HttpClient>(ioContext_);
+        httpServer_ = std::make_shared<HttpServer>(ioContext_, boost::asio::ip::tcp::endpoint{listen_address, listen_port},
+                        std::bind(&TnG_Reader::serverHandleFailureCb, this, std::placeholders::_1),
+                        std::bind(&TnG_Reader::serverHandleRequestCb, this, std::placeholders::_1));
+        httpServer_->run();
+        
+        Logger::getInstance()->FnLog("Touch n Go Reader initialization completed.");
+        Logger::getInstance()->FnLog("Touch n Go Reader initialization completed.", logFileName_, "TNG");
+        
+        std::ostringstream oss;
+        oss << "Remote server host: " << remoteServerHost << ", Remote server port: " << remoteServerPort;
+        oss << ", Local server host: " << listenHost << ", Local server port: " << listenPort;
+        Logger::getInstance()->FnLog(oss.str());
+        Logger::getInstance()->FnLog(oss.str(), logFileName_, "TNG");
+    }
+    catch (const std::exception& ex)
+    {
+        Logger::getInstance()->FnLog(std::string("Exception during TnG_Reader initialization: ") + ex.what(), logFileName_, "TNG");
+    }
 }
 
 void TnG_Reader::FnTnGReaderClose()

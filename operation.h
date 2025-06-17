@@ -28,7 +28,8 @@ typedef enum : unsigned int
     Ant                 = 1,
     LCSC                = 2,
     UPOS                = 3,
-    CHU                 = 4
+    CHU                 = 4,
+    TnGReader           = 5
 } DeviceType;
 
 class operation
