@@ -89,7 +89,7 @@ void TnG_Reader::FnTnGReader_PayRequest(int payAmt, int discountAmt, long int en
             if (httpClient_)
             {
                 boost::json::object obj;
-                obj["payAmount"] = payAmt;
+                obj["PayAmount"] = payAmt;
                 obj["DiscountAmount"] = discountAmt;
                 obj["EnterTime"] = enterTime;
                 obj["PayTime"] = payTime;

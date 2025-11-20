@@ -33,6 +33,8 @@ std::mutex operation::mutex_;
 operation::operation()
 {
     isOperationInitialized_.store(false);
+    lastLEDMsg_ = "";
+    lastLCDMsg_ = "";
 }
 
 operation* operation::getInstance()
@@ -353,7 +355,6 @@ void operation::LoopACome()
 
     //----
     writelog (transID, "OPR");
-    ShowLEDMsg("Reading LPN...^Please wait", "Reading LPN...^Please wait");
     operation::getInstance()->EnableCashcard(true);
 }
 
@@ -626,6 +627,26 @@ void operation::Initdevice(io_context& ioContext)
 
     // Loop A timer
     pLoopATimer_ = std::make_unique<boost::asio::deadline_timer>(ioContext);
+
+    pMsgDisplayTimer_ = std::make_unique<boost::asio::steady_timer>(ioContext);
+    pMsgDisplayTimer_->expires_after(std::chrono::seconds(1));
+    pMsgDisplayTimer_->async_wait(boost::asio::bind_executor(*operationStrand_, [this] (const boost::system::error_code &ec)
+    {
+        if (!ec)
+        {
+            this->MsgDisplayTimerTimeoutHandler();
+        }
+        else if (ec == boost::asio::error::operation_aborted)
+        {
+            Logger::getInstance()->FnLog("Message Display timer cancelled.", "", "OPR");
+        }
+        else
+        {
+            std::stringstream ss;
+            ss << "Message Display timer timeout error :" << ec.message();
+            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+        }
+    }));
 }
 
 void operation::LcdIdleTimerTimeoutHandler()
@@ -671,29 +692,80 @@ void operation::LcdIdleTimerTimeoutHandler()
     }));
 }
 
-void operation::ShowLEDMsg(string LEDMsg, string LCDMsg)
+void operation::MsgDisplayTimerTimeoutHandler()
 {
-    static std::string sLastLEDMsg;
-    static std::string sLastLCDMsg;
+    std::string ledMsg;
+    std::string lcdMsg;
 
-    if (sLastLEDMsg != LEDMsg)
     {
-        sLastLEDMsg = LEDMsg;
-        writelog ("LED Message:" + LEDMsg,"OPR");
-
-        if (LEDManager::getInstance()->getLED(getSerialPort(std::to_string(tParas.giCommPortLED))) != nullptr)
+        std::lock_guard<std::mutex> lock(queueMutex_);
+        
+        if (!LEDMsgQueue_.empty())
         {
-            LEDManager::getInstance()->getLED(getSerialPort(std::to_string(tParas.giCommPortLED)))->FnLEDSendLEDMsg("***", LEDMsg, LED::Alignment::CENTER);
+            ledMsg = LEDMsgQueue_.front();
+            LEDMsgQueue_.pop();
+        }
+
+        if (!LCDMsgQueue_.empty())
+        {
+            lcdMsg = LCDMsgQueue_.front();
+            LCDMsgQueue_.pop();
         }
     }
 
-    if (sLastLCDMsg != LCDMsg)
+    // Display LED
+    if (!ledMsg.empty())
     {
-        sLastLCDMsg = LCDMsg;
-        writelog ("LCD Message:" + LCDMsg,"OPR");
+        if (LEDManager::getInstance()->getLED(getSerialPort(std::to_string(tParas.giCommPortLED))) != nullptr)
+        {
+            LEDManager::getInstance()->getLED(getSerialPort(std::to_string(tParas.giCommPortLED)))->FnLEDSendLEDMsg("***", ledMsg, LED::Alignment::CENTER);
+        }
+    }
 
-        char* sLCDMsg = const_cast<char*>(LCDMsg.data());
+    // Display LCD
+    if (!lcdMsg.empty())
+    {
+        char* sLCDMsg = const_cast<char*>(lcdMsg.data());
         LCD::getInstance()->FnLCDDisplayScreen(sLCDMsg);
+    }
+
+    // Restart the message display timer
+    pMsgDisplayTimer_->expires_after(std::chrono::seconds(1));
+    pMsgDisplayTimer_->async_wait(boost::asio::bind_executor(*operationStrand_, [this] (const boost::system::error_code &ec)
+    {
+        if (!ec)
+        {
+            this->MsgDisplayTimerTimeoutHandler();
+        }
+        else if (ec == boost::asio::error::operation_aborted)
+        {
+            Logger::getInstance()->FnLog("Message Display timer cancelled.", "", "OPR");
+        }
+        else
+        {
+            std::stringstream ss;
+            ss << "Message Display timer timeout error :" << ec.message();
+            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+        }
+    }));
+}
+
+void operation::ShowLEDMsg(string LEDMsg, string LCDMsg)
+{
+    std::lock_guard<std::mutex> lock(queueMutex_);
+
+    if (lastLEDMsg_ != LEDMsg)
+    {
+        lastLEDMsg_ = LEDMsg;
+        writelog ("LED Message:" + LEDMsg,"OPR");
+        LEDMsgQueue_.push(LEDMsg);
+    }
+
+    if (lastLCDMsg_ != LCDMsg)
+    {
+        lastLCDMsg_ = LCDMsg;
+        writelog ("LCD Message:" + LCDMsg,"OPR");
+        LCDMsgQueue_.push(LCDMsg);
     }
 }
 
@@ -739,6 +811,12 @@ void operation::PBSEntry(string sIU)
     {   
         writelog ("VIP Season Only.", "OPR");
         ShowLEDMsg("Carpark Full!^VIP Season Only", "Carpark Full!^VIP Season Only");
+        return;
+    } 
+    if ((std::stoi(IniParser::getInstance()->FnGetSeasonOnly()) > 0) && iRet != 1 )
+    {   
+        writelog ("Season Only.", "OPR");
+        ShowLEDMsg(tMsg.Msg_SeasonOnly[0], tMsg.Msg_SeasonOnly[1]);
         return;
     } 
     if (tProcess.gbcarparkfull.load() == true && iRet != 1 )
@@ -2853,7 +2931,7 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
             //-------
             if (state == 0) {
                 DebitOK(tExit.sIUNo, cardNo, "","",10, "", TnGReader, "");
-               // writelog("DebitOK end", "OPR");
+                writelog("DebitOK end", "OPR");
                 return;
             }
             if (state == 18 ) {

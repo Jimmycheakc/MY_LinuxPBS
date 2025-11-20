@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iostream>
 #include <mutex>
+#include <queue>
 #include "structuredata.h"
 #include "db.h"
 #include "udp.h"
@@ -120,6 +121,7 @@ public:
 
     void LcdIdleTimerTimeoutHandler();
     void FnLoopATimeoutHandler();
+    void MsgDisplayTimerTimeoutHandler();
 
     void Clearme();
 
@@ -141,6 +143,12 @@ private:
     std::unique_ptr<boost::asio::io_context::strand> operationStrand_;
     std::unique_ptr<boost::asio::deadline_timer> pLCDIdleTimer_;
     std::unique_ptr<boost::asio::deadline_timer> pLoopATimer_;
+    std::unique_ptr<boost::asio::steady_timer> pMsgDisplayTimer_;
+    std::queue<std::string> LEDMsgQueue_;
+    std::queue<std::string> LCDMsgQueue_;
+    std::mutex queueMutex_;
+    std::string lastLEDMsg_;
+    std::string lastLCDMsg_;
     operation();
     ~operation() {
         delete m_udp;
