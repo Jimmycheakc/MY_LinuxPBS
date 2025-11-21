@@ -336,12 +336,12 @@ bool EventHandler::handleTnGPayRequest(const BaseEvent* event)
         if (value)
         {
             // Request Success
-            operation::getInstance()->HandlePBSError(UPOSNoError);
+            operation::getInstance()->HandlePBSError(TnGNoError);
         }
         else
         {
             // Request Fail
-            operation::getInstance()->HandlePBSError(UPOSError);
+            operation::getInstance()->HandlePBSError(TnGError);
         }
     }
     else
@@ -374,12 +374,12 @@ bool EventHandler::handleTnGPayCancelRequest(const BaseEvent* event)
         if (value)
         {
             // Request Success
-            operation::getInstance()->HandlePBSError(UPOSNoError);
+            operation::getInstance()->HandlePBSError(TnGNoError);
         }
         else
         {
             // Request Fail
-            operation::getInstance()->HandlePBSError(UPOSError);
+            operation::getInstance()->HandlePBSError(TnGError);
         }
     }
     else
@@ -412,12 +412,12 @@ bool EventHandler::handleTnGEnableReaderRequest(const BaseEvent* event)
         if (value)
         {
             // Request Success
-            operation::getInstance()->HandlePBSError(UPOSNoError);
+            operation::getInstance()->HandlePBSError(TnGNoError);
         }
         else
         {
             // Request Fail
-            operation::getInstance()->HandlePBSError(UPOSError);
+            operation::getInstance()->HandlePBSError(TnGError);
         }
     }
     else

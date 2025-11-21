@@ -1451,19 +1451,19 @@ void operation::HandlePBSError(EPSError iEPSErr, int iErrCode)
             tPBSError[2].ErrNo = -2;
             break;
         }
-        case UPOSNoError:
+        case TnGNoError:
         {
             if (tPBSError[4].ErrNo < 0){
                 sCmd = "06";
-                sErrMsg = "UPOS OK";
+                sErrMsg = "TnG OK";
             }
             tPBSError[4].ErrNo = 0;
             break;
         }
-        case UPOSError:
+        case TnGError:
         {
             tPBSError[4].ErrNo = -1;
-            tPBSError[4].ErrMsg = "UPOS Error";
+            tPBSError[4].ErrMsg = "TnG Error";
             sCmd = "06";
             sErrMsg = tPBSError[4].ErrMsg;
             break;
