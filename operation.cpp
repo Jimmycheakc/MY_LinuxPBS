@@ -31,10 +31,12 @@ operation* operation::operation_ = nullptr;
 std::mutex operation::mutex_;
 
 operation::operation()
+    : m_db(nullptr), m_udp(nullptr), m_Monitorudp(nullptr)
 {
     isOperationInitialized_.store(false);
     lastLEDMsg_ = "";
     lastLCDMsg_ = "";
+    lastActionTimeAfterLoopA_ = std::chrono::steady_clock::now();
 }
 
 operation* operation::getInstance()
@@ -58,40 +60,44 @@ void operation::OperationInit(io_context& ioContext)
     iCurrentContext = &ioContext;
     //--- broad cast UDP
     tProcess.gsBroadCastIP = getIPAddress();
-    try
+    if (!tProcess.gsBroadCastIP.empty())
     {
-        m_udp = new udpclient(ioContext, tProcess.gsBroadCastIP, 2001, 2001, true);
-    }
-    catch (const boost::system::system_error& e) // Catch Boost.Asio system errors
-    {
-        std::string cppString(e.what());
-        writelog ("Boost.Asio Exception during PMS UDP initialization: "+ cppString,"OPR");
-    }
-    catch (const std::exception& e) {
-        std::string cppString(e.what());
-        writelog ("Exception during PMS UDP initialization: "+ cppString,"OPR");
-    }
-    catch (...)
-    {
-        writelog ("Unknown Exception during PMS UDP initialization.","OPR");
-    }
-    // monitor UDP
-    try
-    {
-        m_Monitorudp = new udpclient(ioContext, tParas.gsCentralDBServer, 2008,2008);
-    }
-    catch (const boost::system::system_error& e) // Catch Boost.Asio system errors
-    {
-        std::string cppString1(e.what());
-        writelog ("Boost.Asio Exception during Monitor UDP initialization: "+ cppString1,"OPR");
-    }
-    catch (const std::exception& e) {
-        std::string cppString1(e.what());
-        writelog ("Exception during Monitor UDP initialization: "+ cppString1,"OPR");
-    }
-    catch (...)
-    {
-        writelog ("Unknown Exception during Monitor UDP initialization.","OPR");
+        try
+        {
+            m_udp = new udpclient(ioContext, tProcess.gsBroadCastIP, 2001, 2001, true);
+        }
+        catch (const boost::system::system_error& e) // Catch Boost.Asio system errors
+        {
+            std::string cppString(e.what());
+            writelog ("Boost.Asio Exception during PMS UDP initialization: "+ cppString,"OPR");
+        }
+        catch (const std::exception& e) {
+            std::string cppString(e.what());
+            writelog ("Exception during PMS UDP initialization: "+ cppString,"OPR");
+        }
+        catch (...)
+        {
+            writelog ("Unknown Exception during PMS UDP initialization.","OPR");
+        }
+
+        // monitor UDP
+        try
+        {
+            m_Monitorudp = new udpclient(ioContext, tParas.gsCentralDBServer, 2008,2008);
+        }
+        catch (const boost::system::system_error& e) // Catch Boost.Asio system errors
+        {
+            std::string cppString1(e.what());
+            writelog ("Boost.Asio Exception during Monitor UDP initialization: "+ cppString1,"OPR");
+        }
+        catch (const std::exception& e) {
+            std::string cppString1(e.what());
+            writelog ("Exception during Monitor UDP initialization: "+ cppString1,"OPR");
+        }
+        catch (...)
+        {
+            writelog ("Unknown Exception during Monitor UDP initialization.","OPR");
+        }
     }
     //
     int iRet = 0;
@@ -292,10 +298,64 @@ bool operation::FnIsOperationInitialized() const
     return isOperationInitialized_.load();
 }
 
+void operation::FnSetLastActionTimeAfterLoopA()
+{
+    lastActionTimeAfterLoopA_ = std::chrono::steady_clock::now();
+}
+
+std::chrono::steady_clock::time_point operation::FnGetLastActionTimeAfterLoopA()
+{
+    return lastActionTimeAfterLoopA_;
+}
+
+void operation::handleLoopAPeriodicTimerTimeout(const boost::system::error_code &ec)
+{
+    if (!ec)
+    {
+        auto now = std::chrono::steady_clock::now();
+        auto lastAction = FnGetLastActionTimeAfterLoopA();
+        auto timeout = std::chrono::seconds(tParas.giOperationTO);
+
+        if ((now - lastAction) > timeout)
+        {
+            FnLoopATimeoutHandler();
+            return;
+        }
+
+        pLoopATimer_->expires_after(std::chrono::seconds(1));
+        pLoopATimer_->async_wait(boost::asio::bind_executor(*operationStrand_, std::bind(&operation::handleLoopAPeriodicTimerTimeout, this, std::placeholders::_1)));
+    }
+    else if (ec == boost::asio::error::operation_aborted)
+    {
+        Logger::getInstance()->FnLog("Loop A periodic timer cancelled.", "", "OPR");
+    }
+    else
+    {
+        std::stringstream ss;
+        ss << "Loop A periodic timer timeout error :" << ec.message();
+        Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+    }
+}
+
+void operation::startLoopAPeriodicTimer()
+{
+    Logger::getInstance()->FnLog(__func__, "", "OPR");
+    if (pLoopATimer_)
+    {
+        pLoopATimer_->expires_after(std::chrono::seconds(1));
+        pLoopATimer_->async_wait(boost::asio::bind_executor(*operationStrand_, std::bind(&operation::handleLoopAPeriodicTimerTimeout, this, std::placeholders::_1)));
+    }
+    else
+    {
+        Logger::getInstance()->FnLog("Unable to start Loop A periodic timer due to pLoopATimer is nullptr.", "", "OPR");
+    }
+}
+
 void operation::FnLoopATimeoutHandler()
 {
-  //  Logger::getInstance()->FnLog("Loop A Timeout handler.", "", "OPR");
-  //  LoopACome();
+    Logger::getInstance()->FnLog("Loop A Operation Timeout handler.", "", "OPR");
+    EnableCashcard(false);
+    LoopACome();
 }
 
 void operation::LoopACome()
@@ -304,53 +364,44 @@ void operation::LoopACome()
     writelog ("Loop A Come","OPR");
 
     // Loop A timer - To prevent loop A hang
-    pLoopATimer_->expires_from_now(boost::posix_time::seconds(operation::getInstance()->tParas.giOperationTO));
-    pLoopATimer_->async_wait(boost::asio::bind_executor(*operationStrand_, [this] (const boost::system::error_code &ec)
-    {
-        if (!ec)
-        {
-            this->FnLoopATimeoutHandler();
-        }
-        else if (ec == boost::asio::error::operation_aborted)
-        {
-            Logger::getInstance()->FnLog("Loop A timer cancelled.", "", "OPR");
-        }
-        else
-        {
-            std::stringstream ss;
-            ss << "Loop A timer timeout error :" << ec.message();
-            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
-        }
-    }));
+    startLoopAPeriodicTimer();
+    FnSetLastActionTimeAfterLoopA();
 
     ShowLEDMsg(tMsg.Msg_LoopA[0], tMsg.Msg_LoopA[1]);
     Clearme();
     DIO::getInstance()->FnSetLCDBacklight(1);
     //----
     int vechicleType = 7;
-  //  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-    for (int i = 0; i < 50; ++i) {
-        if (DIO::getInstance()->FnGetLoopBStatus() && DIO::getInstance()->FnGetLoopAStatus()) { vechicleType = 1; break;}
+    for (int i = 0; i < 50; ++i)
+    {
+        if (DIO::getInstance()->FnGetLoopBStatus() && DIO::getInstance()->FnGetLoopAStatus())
+        {
+            vechicleType = 1;
+            break;
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-
-   // vechicleType = GetVTypeFromLoop();
-
     std::string transID = "";
     bool useFrontCamera = false;
+    /* Temp: Disable for MiniPC Testing
     // Motorcycle - use rear camera
     if (vechicleType == 7)
     {
-        useFrontCamera = true;        //for EdgeBox
+        // For EdgeBox AI
+        useFrontCamera = true;
         transID = tParas.gscarparkcode + "-" + std::to_string (gtStation.iSID) + "B-" + Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
     }
-   //  Car or Lorry - use front camera
+    // Car or Lorry - use front camera
     else
     {
         useFrontCamera = true;
         transID = tParas.gscarparkcode + "-" + std::to_string (gtStation.iSID) + "F-" + Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
     }
-    tProcess.gsTransID  = transID;
+    */
+    // For miniPC testing
+    useFrontCamera = true;
+    transID = tParas.gscarparkcode + "-" + std::to_string (gtStation.iSID) + "-" + Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
+    tProcess.gsTransID = transID;
     Lpr::getInstance()->FnSendTransIDToLPR(tProcess.gsTransID, useFrontCamera);
 
     //----
@@ -363,7 +414,10 @@ void operation::LoopAGone()
     writelog ("Loop A End","OPR");
 
     // Cancel the loop A timer 
-    pLoopATimer_->cancel();
+    if (pLoopATimer_)
+    {
+        pLoopATimer_->cancel();
+    }
 
     //------
     DIO::getInstance()->FnSetLCDBacklight(0);
@@ -407,6 +461,7 @@ void operation::VehicleCome(string sNo)
 
 void operation::Openbarrier()
 {
+    FnSetLastActionTimeAfterLoopA();
     if (tProcess.giCardIsIn == 1) {
         ShowLEDMsg ("Please Take^CashCard.","Please Take^Cashcard.");
         return;
@@ -417,6 +472,7 @@ void operation::Openbarrier()
         return;
     }
     writelog ("Open Barrier","OPR");
+    tProcess.gbBarrierOpened = true;
 
     if (tParas.gsBarrierPulse == 0){tParas.gsBarrierPulse = 500;}
 
@@ -461,7 +517,7 @@ void operation::Clearme()
     tProcess.giCardIsIn = 0;
     tProcess.gbsavedtrans = false;
     tProcess.sEnableReader = false;
-    tProcess.gsTransID = ""; 
+    tProcess.gbBarrierOpened = false;
     //---
     if (gtStation.iType == tientry)
     {
@@ -485,6 +541,7 @@ void operation::Clearme()
         tEntry.sLPN[1] = "";
         tEntry.iVehicleType = 0;
         tEntry.gbEntryOK = false;
+        tProcess.gsTransID = "";
     }
     else
     {
@@ -587,19 +644,19 @@ void operation::Initdevice(io_context& ioContext)
         {
             max_char_per_row =  LED::LED226_MAX_CHAR_PER_ROW;
         }
-        LEDManager::getInstance()->createLED(ioContext, 9600, getSerialPort(std::to_string(tParas.giCommPortLED)), max_char_per_row);
+        LEDManager::getInstance()->createLED(9600, getSerialPort(std::to_string(tParas.giCommPortLED)), max_char_per_row);
     }
 
     if (tParas.giCommportLED401 > 0)
     {
-        LEDManager::getInstance()->createLED(ioContext, 9600, getSerialPort(std::to_string(tParas.giCommportLED401)), LED::LED614_MAX_CHAR_PER_ROW);
+        LEDManager::getInstance()->createLED(9600, getSerialPort(std::to_string(tParas.giCommportLED401)), LED::LED614_MAX_CHAR_PER_ROW);
     }
 
     if (LCD::getInstance()->FnLCDInit())
     {
-        pLCDIdleTimer_ = std::make_unique<boost::asio::deadline_timer>(ioContext);
+        pLCDIdleTimer_ = std::make_unique<boost::asio::steady_timer>(ioContext);
 
-        pLCDIdleTimer_->expires_from_now(boost::posix_time::seconds(1));
+        pLCDIdleTimer_->expires_after(std::chrono::seconds(1));
         pLCDIdleTimer_->async_wait(boost::asio::bind_executor(*operationStrand_, [this] (const boost::system::error_code &ec)
         {
             if (!ec)
@@ -622,11 +679,11 @@ void operation::Initdevice(io_context& ioContext)
     TnG_Reader::getInstance()->FnTnGReaderInit(IniParser::getInstance()->FnGetTnGRemoteServerHost(), IniParser::getInstance()->FnGetTnGRemoteServerPort(), IniParser::getInstance()->FnGetTnGListenHost(), IniParser::getInstance()->FnGetTnGListenPort());
 
     DIO::getInstance()->FnDIOInit();
-    Lpr::getInstance()->FnLprInit(ioContext);
+    Lpr::getInstance()->FnLprInit();
     BARCODE_READER::getInstance()->FnBarcodeReaderInit();
 
     // Loop A timer
-    pLoopATimer_ = std::make_unique<boost::asio::deadline_timer>(ioContext);
+    pLoopATimer_ = std::make_unique<boost::asio::steady_timer>(ioContext);
 
     pMsgDisplayTimer_ = std::make_unique<boost::asio::steady_timer>(ioContext);
     pMsgDisplayTimer_->expires_after(std::chrono::seconds(1));
@@ -672,7 +729,7 @@ void operation::LcdIdleTimerTimeoutHandler()
     }
 
     // Restart the lcd idle timer
-    pLCDIdleTimer_->expires_at(pLCDIdleTimer_->expires_at() + boost::posix_time::seconds(1));
+    pLCDIdleTimer_->expires_at(pLCDIdleTimer_->expiry() + std::chrono::seconds(1));
     pLCDIdleTimer_->async_wait(boost::asio::bind_executor(*operationStrand_, [this] (const boost::system::error_code &ec)
     {
         if (!ec)
@@ -778,7 +835,7 @@ void operation::PBSEntry(string sIU)
 
     if (sIU == "") return;
     //check blacklist
-    SendMsg2Server("90",sIU+",,,,,PMS_DVR");
+    SendMsg2Server("90",","+sIU+",,"+tEntry.sLPN[0]+ ",,PMS_DVR");
     iRet = m_db->IsBlackListIU(sIU);
     if (iRet >= 0){
         ShowLEDMsg(tMsg.MsgBlackList[0], tMsg.MsgBlackList[1]);
@@ -933,8 +990,11 @@ string operation:: getIPAddress()
     tParas.gsLocalIP = result;
     writelog ("local IP address: " + result, "OPR");
     //-----
-    size_t lastDotPosition = result.find_last_of('.');
-    result = result.substr(0, lastDotPosition + 1)+ "255";
+    if (result != "")
+    {
+        size_t lastDotPosition = result.find_last_of('.');
+        result = result.substr(0, lastDotPosition + 1)+ "255";
+    }
     // Output the result
     return result;
 
@@ -992,10 +1052,13 @@ void operation::FnSendDateTimeToMonitor()
 
 void operation::FnSendLogMessageToMonitor(std::string msg)
 {
-    if (m_Monitorudp->FnGetMonitorStatus())
+    if (m_Monitorudp != nullptr)
     {
-        std::string str = "[" + gtStation.sPCName + "|" + std::to_string(gtStation.iSID) + "|" + "305" + "|" + msg + "|]";
-        m_Monitorudp->send(str);
+        if (m_Monitorudp->FnGetMonitorStatus())
+        {
+            std::string str = "[" + gtStation.sPCName + "|" + std::to_string(gtStation.iSID) + "|" + "305" + "|" + msg + "|]";
+            m_Monitorudp->send(str);
+        }
     }
 }
 
@@ -1060,94 +1123,102 @@ void operation::FnSendCmdGetStationCurrLogToMonitor()
         }
 
         bool copyFileFail = false;
-        if (foundNo_ > 0)
+        std::string details;
+        if (PingWithTimeOut(IniParser::getInstance()->FnGetCentralDBServer(), 1, details) == true)
         {
-            std::stringstream ss;
-            ss << "Found " << foundNo_ << " log files.";
-            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+            if (foundNo_ > 0)
+            {
+                std::stringstream ss;
+                ss << "Found " << foundNo_ << " log files.";
+                Logger::getInstance()->FnLog(ss.str(), "", "OPR");
 
-            // Create the mount poin directory if doesn't exist
-            std::string mountPoint = "/mnt/logbackup";
-            std::string sharedFolderPath = operation::getInstance()->tParas.gsLogBackFolder;
-            std::replace(sharedFolderPath.begin(), sharedFolderPath.end(), '\\', '/');
-            std::string username = IniParser::getInstance()->FnGetCentralUsername();
-            std::string password = IniParser::getInstance()->FnGetCentralPassword();
+                // Create the mount poin directory if doesn't exist
+                std::string mountPoint = "/mnt/logbackup";
+                std::string sharedFolderPath = operation::getInstance()->tParas.gsLogBackFolder;
+                std::replace(sharedFolderPath.begin(), sharedFolderPath.end(), '\\', '/');
+                std::string username = IniParser::getInstance()->FnGetCentralUsername();
+                std::string password = IniParser::getInstance()->FnGetCentralPassword();
 
-            if (!std::filesystem::exists(mountPoint))
-            {
-                std::error_code ec;
-                if (!std::filesystem::create_directories(mountPoint, ec))
-                {
-                    Logger::getInstance()->FnLog(("Failed to create " + mountPoint + " directory : " + ec.message()), "", "OPR");
-                    throw std::runtime_error(("Failed to create " + mountPoint + " directory : " + ec.message()));
-                }
-                else
-                {
-                    Logger::getInstance()->FnLog(("Successfully to create " + mountPoint + " directory."), "", "OPR");
-                }
-            }
-            else
-            {
-                Logger::getInstance()->FnLog(("Mount point directory: " + mountPoint + " exists."), "", "OPR");
-            }
-
-            // Mount the shared folder
-            std::string mountCommand = "sudo mount -t cifs " + sharedFolderPath + " " + mountPoint +
-                                        " -o username=" + username + ",password=" + password;
-            int mountStatus = std::system(mountCommand.c_str());
-            if (mountStatus != 0)
-            {
-                Logger::getInstance()->FnLog(("Failed to mount " + mountPoint), "", "OPR");
-                throw std::runtime_error("Failed to mount " + mountPoint);
-            }
-            else
-            {
-                Logger::getInstance()->FnLog(("Successfully to mount " + mountPoint), "", "OPR");
-            }
-
-            // Copy files to mount folder
-            for (const auto& entry : std::filesystem::directory_iterator(logFilePath))
-            {
-                if ((entry.path().filename().string().find(todayDateStr) != std::string::npos) &&
-                    (entry.path().extension() == ".log"))
+                if (!std::filesystem::exists(mountPoint))
                 {
                     std::error_code ec;
-                    std::filesystem::copy(entry.path(), mountPoint / entry.path().filename(), std::filesystem::copy_options::overwrite_existing, ec);
-                    
-                    if (!ec)
+                    if (!std::filesystem::create_directories(mountPoint, ec))
                     {
-                        std::stringstream ss;
-                        ss << "Copy file : " << entry.path() << " successfully.";
-                        Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                        Logger::getInstance()->FnLog(("Failed to create " + mountPoint + " directory : " + ec.message()), "", "OPR");
+                        throw std::runtime_error(("Failed to create " + mountPoint + " directory : " + ec.message()));
                     }
                     else
                     {
-                        std::stringstream ss;
-                        ss << "Failed to copy log file : " << entry.path();
-                        Logger::getInstance()->FnLog(ss.str(), "", "OPR");
-                        copyFileFail = true;
-                        break;
+                        Logger::getInstance()->FnLog(("Successfully to create " + mountPoint + " directory."), "", "OPR");
                     }
                 }
-            }
+                else
+                {
+                    Logger::getInstance()->FnLog(("Mount point directory: " + mountPoint + " exists."), "", "OPR");
+                }
 
-            // Unmount the shared folder
-            std::string unmountCommand = "sudo umount " + mountPoint;
-            int unmountStatus = std::system(unmountCommand.c_str());
-            if (unmountStatus != 0)
-            {
-                Logger::getInstance()->FnLog(("Failed to unmount " + mountPoint), "", "OPR");
-                throw std::runtime_error("Failed to unmount " + mountPoint);
+                // Mount the shared folder
+                std::string mountCommand = "sudo mount -t cifs " + sharedFolderPath + " " + mountPoint +
+                                            " -o username=" + username + ",password=" + password;
+                int mountStatus = std::system(mountCommand.c_str());
+                if (mountStatus != 0)
+                {
+                    Logger::getInstance()->FnLog(("Failed to mount " + mountPoint), "", "OPR");
+                    throw std::runtime_error("Failed to mount " + mountPoint);
+                }
+                else
+                {
+                    Logger::getInstance()->FnLog(("Successfully to mount " + mountPoint), "", "OPR");
+                }
+
+                // Copy files to mount folder
+                for (const auto& entry : std::filesystem::directory_iterator(logFilePath))
+                {
+                    if ((entry.path().filename().string().find(todayDateStr) != std::string::npos) &&
+                        (entry.path().extension() == ".log"))
+                    {
+                        std::error_code ec;
+                        std::filesystem::copy(entry.path(), mountPoint / entry.path().filename(), std::filesystem::copy_options::overwrite_existing, ec);
+                        
+                        if (!ec)
+                        {
+                            std::stringstream ss;
+                            ss << "Copy file : " << entry.path() << " successfully.";
+                            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                        }
+                        else
+                        {
+                            std::stringstream ss;
+                            ss << "Failed to copy log file : " << entry.path();
+                            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                            copyFileFail = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Unmount the shared folder
+                std::string unmountCommand = "sudo umount " + mountPoint;
+                int unmountStatus = std::system(unmountCommand.c_str());
+                if (unmountStatus != 0)
+                {
+                    Logger::getInstance()->FnLog(("Failed to unmount " + mountPoint), "", "OPR");
+                    throw std::runtime_error("Failed to unmount " + mountPoint);
+                }
+                else
+                {
+                    Logger::getInstance()->FnLog(("Successfully to unmount " + mountPoint), "", "OPR");
+                }
             }
             else
             {
-                Logger::getInstance()->FnLog(("Successfully to unmount " + mountPoint), "", "OPR");
+                Logger::getInstance()->FnLog("No Log files to upload.", "", "OPR");
+                throw std::runtime_error("No Log files to upload.");
             }
         }
         else
         {
-            Logger::getInstance()->FnLog("No Log files to upload.", "", "OPR");
-            throw std::runtime_error("No Log files to upload.");
+            Logger::getInstance()->FnLog("Log files failed to upload due to ping failed.", "", "OPR");
         }
 
         if (!copyFileFail)
@@ -1286,13 +1357,22 @@ bool operation::CopyIniFile(const std::string& serverIpAddress, const std::strin
 {
     if ((!serverIpAddress.empty()) && (!stationID.empty()))
     {
-        std::string sharedFilePath = "//" + serverIpAddress + "/carpark/LinuxPBS/Ini/Stn" + stationID;
+        std::string details;
+        if (PingWithTimeOut(serverIpAddress, 1, details) == true)
+        {
+            std::string sharedFilePath = "//" + serverIpAddress + "/carpark/LinuxPBS/Ini/Stn" + stationID;
 
-        std::stringstream ss;
-        ss << "Ini Shared File Path : " << sharedFilePath;
-        Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+            std::stringstream ss;
+            ss << "Ini Shared File Path : " << sharedFilePath;
+            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
 
-        return copyFiles("/mnt/ini", sharedFilePath, IniParser::getInstance()->FnGetCentralUsername(), IniParser::getInstance()->FnGetCentralPassword(), "/home/root/carpark/Ini");
+            return copyFiles("/mnt/ini", sharedFilePath, IniParser::getInstance()->FnGetCentralUsername(), IniParser::getInstance()->FnGetCentralPassword(), "/home/root/carpark/Ini");
+        }
+        else
+        {
+            Logger::getInstance()->FnLog("Failed to ping to Server IP address.", "", "OPR");
+            return false;
+        }
     }
     else
     {
@@ -1303,13 +1383,16 @@ bool operation::CopyIniFile(const std::string& serverIpAddress, const std::strin
 
 void operation::SendMsg2Monitor(string cmdcode,string dstr)
 {
-    if (m_Monitorudp->FnGetMonitorStatus())
+    if (m_Monitorudp != nullptr)
     {
-        string str="["+ gtStation.sPCName +"|"+to_string(gtStation.iSID)+"|"+cmdcode+"|";
-        str+=dstr+"|]";
-        m_Monitorudp->send(str);
-        //----
-        writelog ("Message to Monitor: " + str,"OPR");
+        if (m_Monitorudp->FnGetMonitorStatus())
+        {
+            string str="["+ gtStation.sPCName +"|"+to_string(gtStation.iSID)+"|"+cmdcode+"|";
+            str+=dstr+"|]";
+            m_Monitorudp->send(str);
+            //----
+            writelog ("Message to Monitor: " + str,"OPR");
+        }
     }
 }
 
@@ -1317,9 +1400,12 @@ void operation::SendMsg2Server(string cmdcode,string dstr)
 {
 	string str="["+ gtStation.sName+"|"+to_string(gtStation.iSID)+"|"+cmdcode+"|";
 	str+=dstr+"|]";
-	m_udp->send(str);
-    //----
-    writelog ("Message to PMS: " + str,"OPR");
+    if (m_udp != nullptr)
+    {
+        m_udp->send(str);
+        //----
+        writelog ("Message to PMS: " + str,"OPR");
+    }
 }
 
 int operation::CheckSeason(string sIU,int iInOut)
@@ -1743,6 +1829,7 @@ void operation::FormatSeasonMsg(int iReturn, string sNo, string sMsg, string sLC
 
 void operation::ManualOpenBarrier(bool bPMS)
 {
+    FnSetLastActionTimeAfterLoopA();
      if (bPMS == true) writelog ("Manual open barrier by PMS", "OPR");
      else writelog ("Manual open barrier by operator", "OPR");
      //------------
@@ -1933,27 +2020,26 @@ void operation:: EnableCashcard(bool bEnable)
 
 void operation::ProcessBarcodeData(string sBarcodedata)
 {
-    BARCODE_READER::getInstance()->FnBarcodeStopRead();
     ticketScan(sBarcodedata);
+    FnSetLastActionTimeAfterLoopA();
 }
 
 void operation::ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string sImageLocation)
 {
     writelog ("Received Trans ID: "+sTransid + " LPN: "+ LPN ,"OPR");
-    writelog ("Send Trans ID: "+ tProcess.gsTransID , "OPR");
+    writelog ("Send Trans ID: "+ tProcess.gsTransID, "OPR");
 
     int i = static_cast<int>(CType);
 
-    if (tProcess.gsTransID  == sTransid && tProcess.gbLoopApresent.load() == true && tProcess.gbsavedtrans == false)
+    if (tProcess.gsTransID == sTransid && tProcess.gbLoopApresent.load() == true && tProcess.gbsavedtrans == false)
     {
        if (gtStation.iType == tientry) {
+            // For EdgeBox
             tEntry.sLPN[0]=LPN;
-            tEntry.sLPN[1]=LPN;                    // for edgebox
-            if(tEntry.sIUTKNo == "") VehicleCome(LPN);
+            tEntry.sLPN[1]=LPN;
        }else {
              tExit.sLPN[0]=LPN;
-             tExit.sLPN[1]=LPN;                    //for edgebox
-             if(tExit.sIUNo == "") VehicleCome(LPN);
+             tExit.sLPN[1]=LPN;
        }
 
     }
@@ -1961,6 +2047,11 @@ void operation::ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string
     {
         if (gtStation.iType == tientry) db::getInstance()->updateEntryTrans(LPN,sTransid);
         else db::getInstance()->updateExitTrans(LPN,sTransid);
+    }
+
+    if (tEntry.sIUTKNo != "")
+    {
+        SendMsg2Server("90",","+tEntry.sIUTKNo+",,"+LPN+ ",,Entry OK");
     }
 }
 
@@ -2355,7 +2446,7 @@ void operation::SaveExit()
 
     sMsg2Send = tExit.sIUNo + "," + tExit.sCardNo + "," + Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) + "," + sLPRNo + "," + std::to_string(tProcess.giShowType) + "," + sMsg2Send;
 
-    if (tEntry.iStatus == 0) {
+    if (tExit.iStatus == 0) {
         SendMsg2Server("90", sMsg2Send);
     }
     tProcess.gbsavedtrans = true;
@@ -2521,16 +2612,23 @@ void operation::ticketScan(std::string skeyedNo)
             if (tExit.sFee - tExit.sRedeemAmt - tExit.sRebateAmt + tExit.sOweAmt <= 0.00f)
             {
                 ticketOK();
-                return;
             }
             else
             {
                 ShowLEDMsg("Amount Redeem,^Pls Pay Bal!", "Amount Redeem^Pls Pay Bal!");
                 writelog("Amount Redeem, Pls Pay Bal.","OPR");
-                return;
+                showFee2User();
             }
         }
+        else
+        {
+            ShowLEDMsg("Amount Redeem,^Insert/Tap Card", "Amount Redeem^Insert/Tap Card");
+            showFee2User();
+        }
+        return;
     }
+
+    EnableCashcard(false);
 
     //--------
     if (skeyedNo.length() >= 12)
@@ -2545,6 +2643,34 @@ void operation::ticketScan(std::string skeyedNo)
         }
         // Check if ticket barcode is 9 digits
         else
+        {
+            if (skeyedNo.length() == 15)
+            {
+                sCardTkNo = Common::getInstance()->FnToUpper(skeyedNo.substr(0, 15));
+
+                TT = sCardTkNo.substr(7, 1);
+                if ((TT == "V") or (TT == "W") or (TT == "U") or (TT == "Z"))
+                {
+                    if ((TT == "V") or (TT == "W"))
+                    {
+                        isRedemptionTicket = true;
+                    }
+
+                    if (((TT == "V") or (TT == "W")) && (tParas.giExitTicketRedemption == 0))
+                    {
+                        writelog("Redemption ticket but redemption disabled: " + sCardTkNo, "OPR");
+                        ShowLEDMsg(tExitMsg.MsgExit_RedemptionTicket[0], tExitMsg.MsgExit_RedemptionTicket[1]);
+                        goto Exit_Sub;
+                    }
+                }
+
+                ShowLEDMsg(tExitMsg.MsgExit_CardIn[0], tExitMsg.MsgExit_CardIn[1]);
+            }
+        }
+    }
+    else
+    {
+        if (skeyedNo.length() == 9)
         {
             sCardTkNo = Common::getInstance()->FnToUpper(skeyedNo.substr(0, 9));
 
@@ -2568,7 +2694,7 @@ void operation::ticketScan(std::string skeyedNo)
         }
     }
     
-    if (sCardTkNo.length() != 9 && sCardTkNo.length() != 12)
+    if (sCardTkNo.length() != 9 && sCardTkNo.length() != 12 && sCardTkNo.length() != 15)
     {
         writelog("Invalid Ticket (Wrong Len): " + skeyedNo, "OPR");
         SendMsg2Server("90",skeyedNo + ",,,,,Invalid Ticket (Wrong Len)");
@@ -2653,11 +2779,11 @@ void operation::ticketScan(std::string skeyedNo)
                     
                 if (fee <= 0.00f)
                 {
-                        ticketOK();
+                    ticketOK();
+                    return;
                 }
                 else
                 {
-                    ShowLEDMsg(tExitMsg.MsgExit_XNoCard[0], tExitMsg.MsgExit_XNoCard[1]);
                     EnableCashcard(true);
                     return;
                 }
@@ -2711,8 +2837,9 @@ void operation::ticketScan(std::string skeyedNo)
                         ShowLEDMsg(tExitMsg.MsgExit_Complimentary[0], tExitMsg.MsgExit_Complimentary[1]);
                     }
                 }
-               ticketOK();    
-            }   
+               ticketOK();
+               return;
+            }
             break;
         }
         // Used
@@ -2751,12 +2878,15 @@ void operation::ticketScan(std::string skeyedNo)
 
 Exit_Sub:
 
-    // Temp: Possible need to add 2 seconds delay
+    showFee2User();
 
     if (tExit.bPayByEZPay == true)
     {
         ShowLEDMsg("You may scan^Compl Ticket", "");
     }
+
+    EnableCashcard(true);
+
     return;
 }
 
@@ -2799,7 +2929,8 @@ void operation::showFee2User(bool bPaying)
     }
 
     std::string sMsg = sUpp + "^" + sLow;
-    
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     ShowLEDMsg(sMsg, sMsg);
 
     std::string exit_entry_time = "00:00";
@@ -2928,6 +3059,7 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
             oss << ", stan=" << stan;
             oss << ", apprCode=" << apprCode;
             writelog(oss.str(), "OPR");
+            FnSetLastActionTimeAfterLoopA();
             //-------
             if (state == 0) {
                 DebitOK(tExit.sIUNo, cardNo, "","",10, "", TnGReader, "");
@@ -2981,6 +3113,7 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
             oss << "cardNo=" << cardNo;
             oss << ", orderId=" << orderId;
             writelog(oss.str(), "OPR");
+            FnSetLastActionTimeAfterLoopA();
             //---- added on 05/06/2025
            if (gtStation.iType == tientry) {
                 tEntry.sCardNo = cardNo;

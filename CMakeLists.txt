@@ -55,7 +55,7 @@ set(SOURCE_FILES
     db.cpp
     dio.cpp
     operation.cpp
-    tcp.cpp
+    tcp_client.cpp
     lpr.cpp
     barcode_reader.cpp
     http_client.cpp

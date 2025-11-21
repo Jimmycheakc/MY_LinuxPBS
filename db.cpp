@@ -577,7 +577,7 @@ int db::downloadseason()
     	Logger::getInstance()->FnLog(dbss.str(), "", "DB");
 	}
 	
-	r = centraldb->SQLSelect("SELECT TOP 10 * FROM season_mst WHERE s" + to_string(1) + "_fetched = 0 ", &selResult, true);
+	r = centraldb->SQLSelect("SELECT TOP 10 * FROM season_mst WHERE s" + to_string(giStnid) + "_fetched = 0 ", &selResult, true);
 	if(r != 0)
 	{
 		m_remote_db_err_flag = 1;
@@ -628,7 +628,7 @@ int db::downloadseason()
 				Logger::getInstance()->FnLog(dbss.str(), "", "DB");
 
 				//update to central DB
-				r = centraldb->SQLExecutNoneQuery("UPDATE season_mst SET s" + to_string(1) + "_fetched = '1' WHERE season_no = '" + seasonno + "'");
+				r = centraldb->SQLExecutNoneQuery("UPDATE season_mst SET s" + to_string(giStnid) + "_fetched = '1' WHERE season_no = '" + seasonno + "'");
 				dbss.str("");  // Set the underlying string to an empty string
     			dbss.clear();   // Clear the state of the stream
 				if (r != 0) 
@@ -6131,6 +6131,12 @@ DBError db::insertexittrans(tExitTrans_Struct& tExit)
     }
 
     operation::getInstance()->tProcess.giSystemOnline = 0;
+	// Fix the overflow in central DB
+	// parked_time (smallint) in central DB
+	if (tExit.lParkedTime >= 32000)
+	{
+		tExit.lParkedTime = 32000;
+	}
 
     sqlStmt = "INSERT INTO exit_trans_tmp (station_id, exit_time, iu_tk_no, card_mc_no, trans_type, parked_time";
     sqlStmt = sqlStmt + ", parking_fee, paid_amt, receipt_no, status, redeem_amt, redeem_time, redeem_no";

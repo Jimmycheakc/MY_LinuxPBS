@@ -41,6 +41,15 @@ void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::
     {
         if (operation::getInstance()->tProcess.gbLoopApresent.load() == false) 
         {
+            std::string details;
+            if (operation::getInstance()->tProcess.giSystemOnline == 1)
+            {
+                if (PingWithTimeOut(IniParser::getInstance()->FnGetCentralDBServer(), 1, details) == true)
+                {
+                    operation::getInstance()->tProcess.giSystemOnline = 0;
+                }
+            }
+
             if (operation::getInstance()->tProcess.giSystemOnline == 0 && operation::getInstance()->tProcess.glNoofOfflineData > 0)
             {
                 db::getInstance()->moveOfflineTransToCentral();
@@ -51,12 +60,6 @@ void dailyProcessTimerHandler(const boost::system::error_code &ec, boost::asio::
             {
                 db::getInstance()->synccentraltime();
                 lastSyncTime = start;
-            }
-
-            // check central DB
-            if (operation::getInstance()->tProcess.giSystemOnline != 0) {
-                
-                
             }
 
             // Clear expired season
@@ -107,160 +110,395 @@ void dailyLogHandler(const boost::system::error_code &ec, boost::asio::steady_ti
     // Get today's date
     auto today = std::chrono::system_clock::now();
     auto todayDate = std::chrono::system_clock::to_time_t(today);
-    std::tm* localToday = std::localtime(&todayDate);
+    std::tm localToday;
+    localtime_r(&todayDate, &localToday);
+
+    static int lastLoggedDayOfYear = localToday.tm_yday;
+    if (localToday.tm_yday != lastLoggedDayOfYear)
+    {
+        SystemInfo::getInstance()->FnLogSysInfo();
+        lastLoggedDayOfYear = localToday.tm_yday;
+    }
 
     // Check if it's past 12 AM (midnight)
-    if (localToday->tm_hour == 0 && localToday->tm_min >= 0 && localToday->tm_min < 30)
+    if (localToday.tm_hour == 0 && localToday.tm_min >= 1 && localToday.tm_min < 30)
     {
         std::string logFilePath = Logger::getInstance()->LOG_FILE_PATH;
+        std::string LPRDbLogFilePath = "/home/root/evas_web/db_files";
 
         // Extract year, month and day
         std::ostringstream ossToday;
-        ossToday << std::setw(2) << std::setfill('0') << (localToday->tm_year % 100);
-        ossToday << std::setw(2) << std::setfill('0') << (localToday->tm_mon + 1);
-        ossToday << std::setw(2) << std::setfill('0') << localToday->tm_mday;
+        ossToday << std::setw(2) << std::setfill('0') << (localToday.tm_year % 100);
+        ossToday << std::setw(2) << std::setfill('0') << (localToday.tm_mon + 1);
+        ossToday << std::setw(2) << std::setfill('0') << localToday.tm_mday;
 
         std::string todayDateStr = ossToday.str();
 
+        std::ostringstream dbLogoss;
+        dbLogoss << std::setw(4) << std::setfill('0') << (localToday.tm_year + 1900) << "-"
+            << std::setw(2) << std::setfill('0') << (localToday.tm_mon + 1) << "-"
+            << std::setw(2) << std::setfill('0') << localToday.tm_mday;
+
+        std::string LPRDbFormattedDate = dbLogoss.str();
+
         // Iterate through the files in the log file path
         int foundNo_ = 0;
-        for (const auto& entry : std::filesystem::directory_iterator(logFilePath))
+        if (std::filesystem::exists(logFilePath) && std::filesystem::is_directory(logFilePath))
         {
-            if ((entry.path().filename().string().find(todayDateStr) == std::string::npos) &&
-                (entry.path().extension() == ".log"))
+            for (const auto& entry : std::filesystem::directory_iterator(logFilePath))
             {
-                foundNo_ ++;
+                if ((entry.path().filename().string().find(todayDateStr) == std::string::npos) &&
+                    (entry.path().extension() == ".log"))
+                {
+                    foundNo_ ++;
+                }
             }
         }
-
-        if (foundNo_ > 0)
+        else
         {
-            std::stringstream ss;
-            ss << "Found " << foundNo_ << " log files.";
-            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+            Logger::getInstance()->FnLog("Log directory does not exist: " + logFilePath, "", "OPR");
+        }
 
-            // Create the mount poin directory if doesn't exist
-            std::string mountPoint = "/mnt/logbackup";
-            std::string sharedFolderPath = operation::getInstance()->tParas.gsLogBackFolder;
-            std::replace(sharedFolderPath.begin(), sharedFolderPath.end(), '\\', '/');
-            std::string username = IniParser::getInstance()->FnGetCentralUsername();
-            std::string password = IniParser::getInstance()->FnGetCentralPassword();
-
-            try
+        int foundLPRDbLog_  = 0;
+        if (std::filesystem::exists(LPRDbLogFilePath) && std::filesystem::is_directory(LPRDbLogFilePath))
+        {
+            for (const auto& entry : std::filesystem::directory_iterator(LPRDbLogFilePath))
             {
-                if (!std::filesystem::exists(mountPoint))
+                if ((entry.path().filename().string().find(LPRDbFormattedDate) == std::string::npos) &&
+                    (entry.path().extension() == ".csv"))
                 {
-                    std::error_code ec;
-                    if (!std::filesystem::create_directories(mountPoint, ec))
+                    foundLPRDbLog_ ++;
+                }
+            }
+        }
+        else
+        {
+            Logger::getInstance()->FnLog("LPR DB log directory does not exist: " + LPRDbLogFilePath, "", "OPR");
+        }
+
+        std::string details;
+        if (PingWithTimeOut(IniParser::getInstance()->FnGetCentralDBServer(), 1, details) == true)
+        {
+            if (foundNo_ > 0)
+            {
+                std::stringstream ss;
+                ss << "Found " << foundNo_ << " log files.";
+                Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+
+                // Create the mount poin directory if doesn't exist
+                std::string mountPoint = "/mnt/logbackup";
+                std::string sharedFolderPath = operation::getInstance()->tParas.gsLogBackFolder;
+                std::replace(sharedFolderPath.begin(), sharedFolderPath.end(), '\\', '/');
+                std::string username = IniParser::getInstance()->FnGetCentralUsername();
+                std::string password = IniParser::getInstance()->FnGetCentralPassword();
+
+                try
+                {
+                    if (!std::filesystem::exists(mountPoint))
                     {
-                        Logger::getInstance()->FnLog(("Failed to create " + mountPoint + " directory : " + ec.message()), "", "OPR");
+                        std::error_code ec;
+                        if (!std::filesystem::create_directories(mountPoint, ec))
+                        {
+                            Logger::getInstance()->FnLog(("Failed to create " + mountPoint + " directory : " + ec.message()), "", "OPR");
+                        }
+                        else
+                        {
+                            Logger::getInstance()->FnLog(("Successfully to create " + mountPoint + " directory."), "", "OPR");
+                        }
                     }
                     else
                     {
-                        Logger::getInstance()->FnLog(("Successfully to create " + mountPoint + " directory."), "", "OPR");
+                        Logger::getInstance()->FnLog(("Mount point directory: " + mountPoint + " exists."), "", "OPR");
                     }
-                }
-                else
-                {
-                    Logger::getInstance()->FnLog(("Mount point directory: " + mountPoint + " exists."), "", "OPR");
-                }
 
-                // Mount the shared folder
-                std::string mountCommand = "sudo mount -t cifs " + sharedFolderPath + " " + mountPoint +
-                                            " -o username=" + username + ",password=" + password;
-                int mountStatus = std::system(mountCommand.c_str());
-                if (mountStatus != 0)
-                {
-                    Logger::getInstance()->FnLog(("Failed to mount " + mountPoint), "", "OPR");
-                }
-                else
-                {
-                    Logger::getInstance()->FnLog(("Successfully to mount " + mountPoint), "", "OPR");
-
-                    // Copy files to mount folder
-                    for (const auto& entry : std::filesystem::directory_iterator(logFilePath))
+                    // Mount the shared folder
+                    std::string mountCommand = "sudo mount -t cifs " + sharedFolderPath + " " + mountPoint +
+                                                " -o username=" + username + ",password=" + password;
+                    int mountStatus = std::system(mountCommand.c_str());
+                    if (mountStatus != 0)
                     {
-                        if ((entry.path().filename().string().find(todayDateStr) == std::string::npos) &&
-                            (entry.path().extension() == ".log"))
-                        {
-                            std::error_code ec;
-                            std::filesystem::copy(entry.path(), mountPoint / entry.path().filename(), std::filesystem::copy_options::overwrite_existing, ec);
+                        Logger::getInstance()->FnLog(("Failed to mount " + mountPoint), "", "OPR");
+                    }
+                    else
+                    {
+                        Logger::getInstance()->FnLog(("Successfully to mount " + mountPoint), "", "OPR");
 
-                            if (!ec)
+                        // Copy files to mount folder
+                        for (const auto& entry : std::filesystem::directory_iterator(logFilePath))
+                        {
+                            if ((entry.path().filename().string().find(todayDateStr) == std::string::npos) &&
+                                (entry.path().extension() == ".log"))
                             {
-                                std::stringstream ss;
-                                ss << "Copy file : " << entry.path() << " successfully.";
-                                Logger::getInstance()->FnLog(ss.str(), "", "OPR");
-                                
-                                std::filesystem::remove(entry.path());
-                                ss.str("");
-                                ss << "Removed log file : " << entry.path() << " successfully";
-                                Logger::getInstance()->FnLog(ss.str(), "", "OPR");
-                            }
-                            else
-                            {
-                                std::stringstream ss;
-                                ss << "Failed to copy log file : " << entry.path();
-                                Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                                std::error_code ec;
+                                std::filesystem::copy(entry.path(), mountPoint / entry.path().filename(), std::filesystem::copy_options::overwrite_existing, ec);
+
+                                if (!ec)
+                                {
+                                    std::stringstream ss;
+                                    ss << "Copy file : " << entry.path() << " successfully.";
+                                    Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                                    
+                                    std::filesystem::remove(entry.path());
+                                    ss.str("");
+                                    ss << "Removed log file : " << entry.path() << " successfully";
+                                    Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                                }
+                                else
+                                {
+                                    std::stringstream ss;
+                                    ss << "Failed to copy log file : " << entry.path();
+                                    Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                                }
                             }
                         }
                     }
                 }
-            }
-            catch (const std::filesystem::filesystem_error& e)
-            {
-                std::stringstream ss;
-                ss << __func__ << ", Exception: " << e.what();
-                Logger::getInstance()->FnLogExceptionError(ss.str());
-            }
-            catch (const std::exception& e)
-            {
-                std::stringstream ss;
-                ss << __func__ << ", Exception: " << e.what();
-                Logger::getInstance()->FnLogExceptionError(ss.str());
-            }
-            catch (...)
-            {
-                std::stringstream ss;
-                ss << __func__ << ", Exception: Unknown Exception";
-                Logger::getInstance()->FnLogExceptionError(ss.str());
-            }
+                catch (const std::filesystem::filesystem_error& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (const std::exception& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (...)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: Unknown Exception";
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
 
-            try
-            {
-                // Unmount the shared folder
-                std::string unmountCommand = "sudo umount " + mountPoint;
-                int unmountStatus = std::system(unmountCommand.c_str());
-                if (unmountStatus != 0)
+                try
                 {
-                    Logger::getInstance()->FnLog(("Failed to unmount " + mountPoint), "", "OPR");
+                    // Unmount the shared folder
+                    std::string unmountCommand = "sudo umount " + mountPoint;
+                    int unmountStatus = std::system(unmountCommand.c_str());
+                    if (unmountStatus != 0)
+                    {
+                        Logger::getInstance()->FnLog(("Failed to unmount " + mountPoint), "", "OPR");
+                    }
+                    else
+                    {
+                        Logger::getInstance()->FnLog(("Successfully to unmount " + mountPoint), "", "OPR");
+                    }
                 }
-                else
+                catch (const std::filesystem::filesystem_error& e)
                 {
-                    Logger::getInstance()->FnLog(("Successfully to unmount " + mountPoint), "", "OPR");
+                    std::stringstream ss;
+                    ss << __func__ << ", Unmount Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (const std::exception& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Unmount Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (...)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Unmount Exception: Unknown Exception";
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
                 }
             }
-            catch (const std::filesystem::filesystem_error& e)
+            
+            if (foundLPRDbLog_ > 0)
             {
+
                 std::stringstream ss;
-                ss << __func__ << ", Unmount Exception: " << e.what();
-                Logger::getInstance()->FnLogExceptionError(ss.str());
-            }
-            catch (const std::exception& e)
-            {
-                std::stringstream ss;
-                ss << __func__ << ", Unmount Exception: " << e.what();
-                Logger::getInstance()->FnLogExceptionError(ss.str());
-            }
-            catch (...)
-            {
-                std::stringstream ss;
-                ss << __func__ << ", Unmount Exception: Unknown Exception";
-                Logger::getInstance()->FnLogExceptionError(ss.str());
+                ss << "Found " << foundLPRDbLog_ << " lpn database files.";
+                Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+
+                // Create the mount poin directory if doesn't exist
+                std::string mountPoint = "/mnt/dbfilesbackup";
+                std::string sharedFolderPath = operation::getInstance()->tParas.gsLogBackFolder;
+                std::replace(sharedFolderPath.begin(), sharedFolderPath.end(), '\\', '/');
+                // Find the last slash
+                // Replace from "//192.168.2.141/Carpark/Log" to "//192.168.2.141/Carpark"
+                std::size_t pos = sharedFolderPath.find_last_of('/');
+                if (pos != std::string::npos)
+                {
+                    sharedFolderPath = sharedFolderPath.substr(0, pos);
+                }
+                std::string username = IniParser::getInstance()->FnGetCentralUsername();
+                std::string password = IniParser::getInstance()->FnGetCentralPassword();
+
+                try
+                {
+                    if (!std::filesystem::exists(mountPoint))
+                    {
+                        std::error_code ec;
+                        if (!std::filesystem::create_directories(mountPoint, ec))
+                        {
+                            Logger::getInstance()->FnLog(("Failed to create " + mountPoint + " directory : " + ec.message()), "", "OPR");
+                        }
+                        else
+                        {
+                            Logger::getInstance()->FnLog(("Successfully to create " + mountPoint + " directory."), "", "OPR");
+                        }
+                    }
+                    else
+                    {
+                        Logger::getInstance()->FnLog(("Mount point directory: " + mountPoint + " exists."), "", "OPR");
+                    }
+
+                    // Mount the shared folder
+                    std::string mountCommand = "sudo mount -t cifs " + sharedFolderPath + " " + mountPoint +
+                                                " -o username=" + username + ",password=" + password;
+                    int mountStatus = std::system(mountCommand.c_str());
+                    if (mountStatus != 0)
+                    {
+                        Logger::getInstance()->FnLog(("Failed to mount " + mountPoint), "", "OPR");
+                    }
+                    else
+                    {
+                        Logger::getInstance()->FnLog(("Successfully to mount " + mountPoint), "", "OPR");
+
+                        // Get current year and and month
+                        auto now = std::chrono::system_clock::now();
+                        std::time_t nowTime = std::chrono::system_clock::to_time_t(now);
+                        std::tm localNow;
+                        localtime_r(&nowTime, &localNow);
+
+                        std::ostringstream yearFolderSS, monthFolderSS;
+                        yearFolderSS << std::setw(4) << std::setfill('0') << (localNow.tm_year + 1900);
+                        monthFolderSS << std::setw(2) << std::setfill('0') << (localNow.tm_mon + 1);
+
+                       std::filesystem::path targetFolder = std::filesystem::path(mountPoint) / "Database/LPN" / yearFolderSS.str() / monthFolderSS.str();
+
+                        // Create folder if they do not exist
+                        std::error_code ec;
+                        if (!std::filesystem::exists(targetFolder))
+                        {
+                            if (!std::filesystem::create_directories(targetFolder, ec))
+                            {
+                                Logger::getInstance()->FnLog("Failed to create target folder: " + targetFolder.string() + " | " + ec.message(), "", "OPR");
+                            }
+                            else
+                            {
+                                Logger::getInstance()->FnLog(("Successfully to create " + targetFolder.string() + " directory."), "", "OPR");
+                            }
+                        }
+                        else
+                        {
+                            Logger::getInstance()->FnLog(("Target folder directory: " + targetFolder.string() + " exists."), "", "OPR");
+                        }
+
+                        // Copy files to mount folder
+                        for (const auto& entry : std::filesystem::directory_iterator(LPRDbLogFilePath))
+                        {
+                            if ((entry.path().filename().string().find(LPRDbFormattedDate) == std::string::npos) &&
+                                (entry.path().extension() == ".csv"))
+                            {
+                                std::string filename = entry.path().filename().string();
+                                const char* lastUnderScore = strrchr(filename.c_str(), '_');
+
+                                if (lastUnderScore)
+                                {
+                                    int year, month, day;
+                                    if (std::sscanf(lastUnderScore + 1, "%4d-%2d-%2d.csv", &year, &month, &day) == 3)
+                                    {
+                                        std::ostringstream checkYearFolderSS, checkMonthFolderSS;
+                                        checkYearFolderSS << std::setw(4) << std::setfill('0') << year;
+                                        checkMonthFolderSS << std::setw(2) << std::setfill('0') << month;
+
+                                        std::filesystem::path checkTargetFolder = std::filesystem::path(mountPoint) / "Database/LPN" / checkYearFolderSS.str() / checkMonthFolderSS.str();
+
+                                        std::error_code ec;
+                                        std::filesystem::create_directories(checkTargetFolder, ec);
+                                        if (ec)
+                                        {
+                                            Logger::getInstance()->FnLog("Failed to create folder: " + checkTargetFolder.string() + " | " + ec.message(), "", "OPR");
+                                            continue;
+                                        }
+
+                                        std::filesystem::copy(entry.path(), checkTargetFolder / entry.path().filename(), std::filesystem::copy_options::overwrite_existing, ec);
+
+                                        if (!ec)
+                                        {
+                                            std::stringstream ss;
+                                            ss << "Copy file : " << entry.path() << " successfully.";
+                                            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                                            
+                                            std::filesystem::remove(entry.path());
+                                            ss.str("");
+                                            ss << "Removed log file : " << entry.path() << " successfully";
+                                            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                                        }
+                                        else
+                                        {
+                                            std::stringstream ss;
+                                            ss << "Failed to copy log file : " << entry.path();
+                                            Logger::getInstance()->FnLog(ss.str(), "", "OPR");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (const std::filesystem::filesystem_error& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (const std::exception& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (...)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: Unknown Exception";
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+
+                try
+                {
+                    // Unmount the shared folder
+                    std::string unmountCommand = "sudo umount " + mountPoint;
+                    int unmountStatus = std::system(unmountCommand.c_str());
+                    if (unmountStatus != 0)
+                    {
+                        Logger::getInstance()->FnLog(("Failed to unmount " + mountPoint), "", "OPR");
+                    }
+                    else
+                    {
+                        Logger::getInstance()->FnLog(("Successfully to unmount " + mountPoint), "", "OPR");
+                    }
+                }
+                catch (const std::filesystem::filesystem_error& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Unmount Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (const std::exception& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Unmount Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (...)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Unmount Exception: Unknown Exception";
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
             }
         }
+        else
+        {
+            Logger::getInstance()->FnLog("Log files failed to upload due to ping failed.", "", "OPR");
+        }
     }
-    
     auto end = std::chrono::steady_clock::now(); // Measure the end time of the handler execution
     auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start); // Calculate the duration of the handler execution
 
