@@ -10,6 +10,8 @@
 #include <fstream>
 #include <functional>
 #include <cstdio>
+#include <cctype>
+#include <cmath>
 #include <map>
 #include "common.h"
 #include "gpio.h"
@@ -2037,9 +2039,11 @@ void operation::ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string
             // For EdgeBox
             tEntry.sLPN[0]=LPN;
             tEntry.sLPN[1]=LPN;
+            if(tEntry.sIUTKNo == "") VehicleCome(LPN);
        }else {
              tExit.sLPN[0]=LPN;
              tExit.sLPN[1]=LPN;
+             if(tExit.sIUNo == "") VehicleCome(LPN);
        }
 
     }
@@ -2127,7 +2131,7 @@ std::string operation::GetVTypeStr(int iVType)
     if (tExit.giDeductionStatus == InsufficientBal )
     {
         if (tProcess.gsLastCardNo == sCheckNo) {
-            ShowLEDMsg("Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal","Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal");
+            ShowLEDMsg("Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal","Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal");
             writelog("insufficient balance", "OPR");
             EnableCashcard(true);
             return;
@@ -2233,8 +2237,102 @@ std::string operation::GetVTypeStr(int iVType)
         return;
     }
     //---Get Entry time
-    if (tExit.bNoEntryRecord == -1) {
+    if (tExit.bNoEntryRecord == -1)
+    {
         iRet = m_db->FetchEntryinfo(sIU);
+        if (iRet == 3)
+        {
+            // Partial Matching
+            writelog("No entry record found, proceed to partial matching", "OPR");
+            std::vector<EntryRecord> entryRecords;
+            int ret = m_db->fetchUnmatchedEntryInfo(entryRecords);
+            if (ret == 0)
+            {
+                try
+                {
+                    // Calculate the highest LPN matching rate
+                    LpnMatchScore highestWholeLpnMatchScore = {"", "", "0", "0", "0.00", 0, 0};
+                    LpnMatchScore highestDigitLpnMatchScore = {"", "", "0", "0", "0.00", 0, 0};
+                    for (const auto& entry : entryRecords)
+                    {
+                        int wholeLpnMatchRate = getMaxSimilarity(entry.lpn, sIU);
+                        int digitLpnMatchRate = getMaxSimilarity(getDigitFromString(entry.lpn), getDigitFromString(sIU));
+
+                        // Checks if the current whole match rate is STRICTLY higher than the max found so far.
+                        // Checks if whole rates are EQUAL AND the current digit rate is STRICTLY higher.
+                        if ((wholeLpnMatchRate > highestWholeLpnMatchScore.wholeLpnMatchRate)
+                            ||
+                            (wholeLpnMatchRate == highestWholeLpnMatchScore.wholeLpnMatchRate
+                            && digitLpnMatchRate > highestWholeLpnMatchScore.digitLpnMatchRate))
+                        {
+                            highestWholeLpnMatchScore.entryTime = entry.entryTime;
+                            highestWholeLpnMatchScore.lpn = entry.lpn;
+                            highestWholeLpnMatchScore.entryStn = entry.entryStn;
+                            highestWholeLpnMatchScore.transType = entry.transType;
+                            highestWholeLpnMatchScore.oweAmt = entry.oweAmt;
+                            highestWholeLpnMatchScore.wholeLpnMatchRate = wholeLpnMatchRate;
+                            highestWholeLpnMatchScore.digitLpnMatchRate = digitLpnMatchRate;
+                        }
+
+                        // Checks if the current digit match rate is STRICTLY higher than the max found so far.
+                        // Checks if digit rates are EQUAL AND the current whole rate is STRICTLY higher.
+                        if ((digitLpnMatchRate > highestWholeLpnMatchScore.digitLpnMatchRate)
+                            ||
+                            (digitLpnMatchRate == highestWholeLpnMatchScore.digitLpnMatchRate
+                            && wholeLpnMatchRate > highestDigitLpnMatchScore.wholeLpnMatchRate))
+                        {
+                            highestDigitLpnMatchScore.entryTime = entry.entryTime;
+                            highestDigitLpnMatchScore.lpn = entry.lpn;
+                            highestDigitLpnMatchScore.entryStn = entry.entryStn;
+                            highestDigitLpnMatchScore.transType = entry.transType;
+                            highestDigitLpnMatchScore.oweAmt = entry.oweAmt;
+                            highestDigitLpnMatchScore.wholeLpnMatchRate = wholeLpnMatchRate;
+                            highestDigitLpnMatchScore.digitLpnMatchRate = digitLpnMatchRate;
+                        }
+                    }
+
+                    if (highestDigitLpnMatchScore.digitLpnMatchRate >= IniParser::getInstance()->FnGetDigitLpnMatchRateThreshold())
+                    {
+                        tExit.sEntryTime = highestDigitLpnMatchScore.entryTime;
+                        tExit.iTransType = std::stoi(highestDigitLpnMatchScore.transType);
+                        tExit.sOweAmt = std::stof(highestDigitLpnMatchScore.oweAmt);
+                        tExit.iEntryID = std::stoi(highestDigitLpnMatchScore.entryStn);
+                        writelog("Exit LPN : " + tExit.sLPN[0] + " matched with outstanding entry in movement_trans : " + std::string(highestDigitLpnMatchScore.lpn) + " matched with digit rate >= 75", "OPR");
+                    }
+                    else if (highestWholeLpnMatchScore.wholeLpnMatchRate > IniParser::getInstance()->FnGetWholeLpnMatchRateThreshold())
+                    {
+                        tExit.sEntryTime = highestWholeLpnMatchScore.entryTime;
+                        tExit.iTransType = std::stoi(highestWholeLpnMatchScore.transType);
+                        tExit.sOweAmt = std::stof(highestWholeLpnMatchScore.oweAmt);
+                        tExit.iEntryID = std::stoi(highestWholeLpnMatchScore.entryStn);
+                        writelog("Exit LPN : " + tExit.sLPN[0] + " matched with outstanding entry in movement_trans : " + std::string(highestWholeLpnMatchScore.lpn) + " matched with whole rate > 60", "OPR");
+                    }
+                    else
+                    {
+                        writelog("No partial matching found for Exit LPN : " +  tExit.sLPN[0] + " in movement_trans",  "OPR");
+                        writelog("Highest Digit rate LPN : " + std::string(highestDigitLpnMatchScore.lpn) + " with digit rate of : " + std::to_string(highestDigitLpnMatchScore.digitLpnMatchRate), "OPR");
+                        writelog("Highest Whole rate LPN : " + std::string(highestWholeLpnMatchScore.lpn) + " with whole rate of : " + std::to_string(highestWholeLpnMatchScore.wholeLpnMatchRate), "OPR");
+                    }
+                }
+                catch (const std::exception& e)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: " << e.what();
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+                catch (...)
+                {
+                    std::stringstream ss;
+                    ss << __func__ << ", Exception: Unknown Exception";
+                    Logger::getInstance()->FnLogExceptionError(ss.str());
+                }
+            }
+            else
+            {
+                writelog("Failed to fetched unmatched Entry records.",  "OPR");
+            }
+        }
+
         if (tExit.sEntryTime == "") {
              tExit.bNoEntryRecord = 1;
              tExit.lParkedTime = -1;
@@ -2350,13 +2448,13 @@ std::string operation::GetVTypeStr(int iVType)
     //------
     showFee2User();
     //-------------
-   // ShowLEDMsg("Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Please Wait...","Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Please Wait...");
+   // ShowLEDMsg("Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Please Wait...","Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Please Wait...");
    if(tExit.sRedeemNo != "" && tExit.sRedeemAmt == 0 ){
         //---- complimentary Ticket
         tExit.iTransType = 10;
         tExit.sPaidAmt = 0;
         tExit.sCardNo = tExit.sRedeemNo;
-        ShowLEDMsg("Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Compl Ticket","Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Compl Ticket");
+        ShowLEDMsg("Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Compl Ticket","Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Compl Ticket");
         CloseExitOperation(FreeParking);
         EnableCashcard(false);
         return;
@@ -2369,7 +2467,7 @@ std::string operation::GetVTypeStr(int iVType)
         }else
         {
             tExit.giDeductionStatus = WaitingCard;
-           // ShowLEDMsg("Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Waiting for Card","Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Waiting for Card");
+           // ShowLEDMsg("Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Waiting for Card","Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Waiting for Card");
             EnableCashcard(true);
                 //enable EPS
         }
@@ -2474,8 +2572,8 @@ void operation::CloseExitOperation(TransType iStatus)
         case FreeParking:
         {
             //---- LED MSg
-            sLEDMsg = "Fee = $0.00 ^ Have A Nice Day!";
-            sLCDMsg = "Fee = $0.00 ^ Have A Nice Day!";
+            sLEDMsg = "Fee = RM0.00 ^ Have A Nice Day!";
+            sLCDMsg = "Fee = RM0.00 ^ Have A Nice Day!";
             break;
         }
         case SeasonParking:
@@ -2583,7 +2681,7 @@ void operation::RedeemTime2Amt()
 
         }
         if (tExit.sRedeemAmt > 0 ) {
-            writelog ("Redemption Time to Amt: $" + Common::getInstance()->SetFeeFormat(tExit.sRedeemAmt), "OPR");
+            writelog ("Redemption Time to Amt: RM" + Common::getInstance()->SetFeeFormat(tExit.sRedeemAmt), "OPR");
         }else
         {
             writelog ("Redeeming time for per entry or same block is not useful.", "OPR");
@@ -2754,7 +2852,7 @@ void operation::ticketScan(std::string skeyedNo)
                 else
                 {
                     tExit.sRedeemAmt = GfeeFormat(gbRedeemAmt);
-                    sMsg = "Redemption: ^$" + Common::getInstance()->SetFeeFormat(tExit.sRedeemAmt);
+                    sMsg = "Redemption: ^RM" + Common::getInstance()->SetFeeFormat(tExit.sRedeemAmt);
                 }
 
                 writelog(sMsg, "OPR");
@@ -2804,7 +2902,7 @@ void operation::ticketScan(std::string skeyedNo)
                     if (tExit.bPayByEZPay == true)
                     {
                         ShowLEDMsg("Complimentary^EZPay refunded", "");
-                        writelog("Complimentary, $" + Common::getInstance()->SetFeeFormat(tExit.sFee) + " refunded to VCC/EZPay", "OPR");
+                        writelog("Complimentary, RM" + Common::getInstance()->SetFeeFormat(tExit.sFee) + " refunded to VCC/EZPay", "OPR");
                         tExit.sRedeemAmt = GfeeFormat(tExit.sFee);
                         tExit.sPaidAmt = 0;
                         tExit.sGSTAmt = 0;
@@ -2827,7 +2925,7 @@ void operation::ticketScan(std::string skeyedNo)
                         if (tExit.bPayByEZPay == true)
                         {
                             ShowLEDMsg("Complimentary^EZpay refunded", "");
-                            writelog("Complimentary, $" + Common::getInstance()->SetFeeFormat(tExit.sFee) + " refunded to VCC/EZPay", "OPR");
+                            writelog("Complimentary, RM" + Common::getInstance()->SetFeeFormat(tExit.sFee) + " refunded to VCC/EZPay", "OPR");
                             tExit.sRedeemAmt = GfeeFormat(tExit.sFee);
                             tExit.sPaidAmt = 0;
                             tExit.sGSTAmt = 0;
@@ -2918,7 +3016,7 @@ void operation::showFee2User(bool bPaying)
 
     if (sFee2Pay > 0)
     {
-        sUpp = "Fee:$" + Common::getInstance()->SetFeeFormat(sFee2Pay);
+        sUpp = "Fee:RM" + Common::getInstance()->SetFeeFormat(sFee2Pay);
         sLow = tExitMsg.MsgExit_XNoCard[0];
     }
     else
@@ -3069,7 +3167,7 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
             if (state == 18 ) {
                 //Insufficient Balance
                 tExit.giDeductionStatus = InsufficientBal;
-                ShowLEDMsg("Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal","Fee: $"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal");
+                ShowLEDMsg("Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal","Fee: RM"+ Common::getInstance()->SetFeeFormat(tExit.sPaidAmt) +"^Insufficient Bal");
                 writelog("insufficient balance", "OPR");
                 EnableCashcard(true);
             }else
@@ -3130,4 +3228,85 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
             writelog(oss.str(), "OPR");
         }
     }
+}
+
+int operation::getMaxSimilarity(const std::string& sEntryLPN, const std::string& sExitLPN)
+{
+    if (sEntryLPN.empty() || sExitLPN.empty())
+    {
+        writelog("sEntryLPN or sExitLPN empty.", "OPR");
+        return 0;
+    }
+
+    const std::string* sSource;
+    const std::string* sTarget;
+    int iLengthSource;
+    int iLengthTarget;
+
+    if (sExitLPN.length() <= sEntryLPN.length())
+    {
+        // Case: sExitLPN is shorter/equal
+        sSource = &sExitLPN;
+        sTarget = &sEntryLPN;
+    }
+    else
+    {
+        // Case: sEntryLPN is shorter
+        sSource = &sEntryLPN;
+        sTarget = &sExitLPN;
+    }
+
+    iLengthSource = static_cast<int>(sSource->length());
+    iLengthTarget = static_cast<int>(sTarget->length());
+
+    // The total number of offsets to check (0 to LengthDifference)
+    int iLengthDifference = iLengthTarget - iLengthSource;
+    int iMaxTotalMatched = 0;
+
+    // Outer loop: i is the offset on sTarget
+    for (int i = 0; i <= iLengthDifference; i++)
+    {
+        int iTotalMatched = 0;
+
+        // Inner loop: j traverses the sSource string, defining the sSource size
+        for (int j = 0; j < iLengthSource; j++)
+        {
+            if ((*sSource)[j] == (*sTarget)[j + i])
+            {
+                iTotalMatched++;
+            }
+        }
+        iMaxTotalMatched = std::max(iMaxTotalMatched, iTotalMatched);
+    }
+
+    // Used the shortest source length as base
+    int iLengthBase = iLengthSource;
+
+    if (iLengthBase == 0)
+    {
+        writelog("Unable to get max similarity due to sExitLPN length empty.", "OPR");
+        return 0;
+    }
+
+    // Calculate similarity percentage: (Max Matches / sExitLPN Length) * 100
+    float fMaxSimilarity = (static_cast<float>(iMaxTotalMatched) / iLengthBase) * 100.0f;
+
+    // Round to the nearest integer
+    return static_cast<int>(std::round(fMaxSimilarity));
+}
+
+std::string operation::getDigitFromString(const std::string& str)
+{
+    std::string digitStr = "";
+
+    for (char c : str)
+    {
+        unsigned char unsign_c = static_cast<unsigned char>(c);
+        if (std::isdigit(unsign_c))
+        {
+            digitStr += unsign_c;
+        }
+    }
+
+    return digitStr;
 }

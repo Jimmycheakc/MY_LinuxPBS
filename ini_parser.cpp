@@ -73,6 +73,8 @@ void IniParser::FnReadIniFile()
         TnGRemoteServerPort_            = pt.get<std::string>("setting.TnGRemoteServerPort", "");
         TnGListenHost_                  = pt.get<std::string>("setting.TnGListenHost", "");
         TnGListenPort_                  = pt.get<std::string>("setting.TnGListenPort", "");
+        WholeLpnMatchRateThreshold_     = pt.get<int>("setting.WholeLpnMatchRateThreshold");
+        DigitLpnMatchRateThreshold_     = pt.get<int>("setting.DigitLpnMatchRateThreshold");
 
         // Confirm [DI]
         LoopA_                          = pt.get<int>("DI.LoopA");
@@ -267,6 +269,16 @@ std::string IniParser::FnGetTnGListenHost() const
 std::string IniParser::FnGetTnGListenPort() const
 {
     return TnGListenPort_;
+}
+
+int IniParser::FnGetWholeLpnMatchRateThreshold() const
+{
+    return WholeLpnMatchRateThreshold_;
+}
+
+int IniParser::FnGetDigitLpnMatchRateThreshold() const
+{
+    return DigitLpnMatchRateThreshold_;
 }
 
 // Confirm [DI]

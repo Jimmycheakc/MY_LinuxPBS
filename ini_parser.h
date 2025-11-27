@@ -37,6 +37,8 @@ public:
     std::string FnGetTnGRemoteServerPort() const;
     std::string FnGetTnGListenHost() const;
     std::string FnGetTnGListenPort() const;
+    int FnGetWholeLpnMatchRateThreshold() const;
+    int FnGetDigitLpnMatchRateThreshold() const;
 
     // Confirm [DI]
     int FnGetLoopA() const;
@@ -93,6 +95,8 @@ private:
     std::string TnGRemoteServerPort_;
     std::string TnGListenHost_;
     std::string TnGListenPort_;
+    int WholeLpnMatchRateThreshold_;
+    int DigitLpnMatchRateThreshold_;
 
     // Confirm [DI]
     int LoopA_;

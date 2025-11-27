@@ -125,6 +125,9 @@ public:
     std::chrono::steady_clock::time_point FnGetLastActionTimeAfterLoopA();
     void MsgDisplayTimerTimeoutHandler();
 
+    int getMaxSimilarity(const std::string& sEntryLPN, const std::string& sExitLPN);
+    std::string getDigitFromString(const std::string& str);
+
     void Clearme();
 
      /**

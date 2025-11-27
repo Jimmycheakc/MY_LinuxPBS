@@ -801,4 +801,23 @@ struct XTariff_Struct
 	std::string time[5];
 };
 
+struct EntryRecord
+{
+	std::string entryTime;
+	std::string lpn;
+	std::string entryStn;
+	std::string transType;
+	std::string oweAmt;
+};
+
+struct LpnMatchScore
+{
+	std::string entryTime;
+	std::string lpn;
+	std::string entryStn;
+	std::string transType;
+	std::string oweAmt;
+	int wholeLpnMatchRate;
+	int digitLpnMatchRate;
+};
 

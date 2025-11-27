@@ -8011,3 +8011,46 @@ DBError db::DeleteBeforeInsertMT(tExitTrans_Struct& tExit)
 	
 }
 
+int db::fetchUnmatchedEntryInfo(std::vector<EntryRecord>& records)
+{
+	int r, iRet;
+	std::string sqlStmt="";
+	vector<ReaderItem> selResult;
+
+	sqlStmt = "SELECT entry_time, iu_tk_no, entry_station, trans_type, owe_amt FROM Movement_trans_tmp WHERE exit_time IS NULL";
+
+	r = centraldb->SQLSelect(sqlStmt, &selResult, true);
+	if (r != 0)
+	{
+		m_remote_db_err_flag = 1;
+		// DB Error
+		iRet = -1;
+		return iRet;
+	}
+	else
+	{
+		m_remote_db_err_flag = 0;
+	}
+
+	if (selResult.size() > 0)
+	{
+		for (int j = 0; j < selResult.size(); j++)
+		{
+			struct EntryRecord entryRecord;
+			entryRecord.entryTime = selResult[j].GetDataItem(0);
+			entryRecord.lpn = selResult[j].GetDataItem(1);
+			entryRecord.entryStn = selResult[j].GetDataItem(2);
+			entryRecord.transType = selResult[j].GetDataItem(3);
+			entryRecord.oweAmt = selResult[j].GetDataItem(4);
+			records.push_back(entryRecord);
+		}
+
+		return r;
+	}
+	else
+	{
+		operation::getInstance()->writelog("No unmatched Entry record in Central DB.", "DB");
+		return 3;
+	}
+}
+

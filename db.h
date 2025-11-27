@@ -134,6 +134,7 @@ public:
     int updateExitReceiptNo(string sReceiptNo, string StnID); 
     int isValidBarCodeTicket(bool isRedemptionTicket, std::string sBarcodeTicket, std::tm& dtExpireTime, double& gbRedeemAmt, int& giRedeemTime);
     DBError update99PaymentTrans();
+    int fetchUnmatchedEntryInfo(std::vector<EntryRecord>& records);
 
     long  glToalRowAffed;
 
