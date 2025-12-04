@@ -693,11 +693,14 @@ void operation::Initdevice(io_context& ioContext)
         }));
     }
 
-    TnG_Reader::getInstance()->FnTnGReaderInit(IniParser::getInstance()->FnGetTnGRemoteServerHost(), IniParser::getInstance()->FnGetTnGRemoteServerPort(), IniParser::getInstance()->FnGetTnGListenHost(), IniParser::getInstance()->FnGetTnGListenPort());
+    if (!IniParser::getInstance()->FnGetTnGRemoteServerHost().empty())
+    {
+        TnG_Reader::getInstance()->FnTnGReaderInit(IniParser::getInstance()->FnGetTnGRemoteServerHost(), IniParser::getInstance()->FnGetTnGRemoteServerPort(), IniParser::getInstance()->FnGetTnGListenHost(), IniParser::getInstance()->FnGetTnGListenPort());
+    }
 
     DIO::getInstance()->FnDIOInit();
     Lpr::getInstance()->FnLprInit();
-    BARCODE_READER::getInstance()->FnBarcodeReaderInit();
+    // BARCODE_READER::getInstance()->FnBarcodeReaderInit();
 
     // Loop A timer
     pLoopATimer_ = std::make_unique<boost::asio::steady_timer>(ioContext);
@@ -2130,13 +2133,14 @@ void operation:: EnableCashcard(bool bEnable)
 
     TnG_Reader::getInstance()->FnTnGReader_EnableReader(bEnable, tProcess.gsTransID);
 
+    /*
     if (bEnable == true){
         if (gtStation.iType == tiExit && tExit.sRedeemNo == "")  BARCODE_READER::getInstance()->FnBarcodeStartRead();
     }else 
     {
       BARCODE_READER::getInstance()->FnBarcodeStopRead();     
     } 
-
+    */
 }
 
 void operation::ProcessBarcodeData(string sBarcodedata)
@@ -2172,10 +2176,12 @@ void operation::ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string
         else db::getInstance()->updateExitTrans(LPN,sTransid);
     }
 
+    /*
     if (tEntry.sIUTKNo != "")
     {
         SendMsg2Server("90",tEntry.sIUTKNo+",,,"+LPN+ ",,Entry OK");
     }
+    */
 }
 
 void operation::DebitOK(const std::string& sIUNO, const std::string& sCardNo, 
@@ -2310,9 +2316,9 @@ std::string operation::GetVTypeStr(int iVType)
         auto sameAsLastIUDuration = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - operation::getInstance()->tProcess.getLastTransTime());
         if (sCheckNo == gsCompareNo && sameAsLastIUDuration.count() <= tParas.giMaxTransInterval) {
             writelog("last trans No: " + gsCompareNo, "OPR");
-            writelog("Same as last IU, duration :" + std::to_string(sameAsLastIUDuration.count()) + " less than Maximum interval: " + std::to_string(operation::getInstance()->tParas.giMaxTransInterval), "OPR");
+            writelog("Same as last LPN, duration :" + std::to_string(sameAsLastIUDuration.count()) + " less than Maximum interval: " + std::to_string(operation::getInstance()->tParas.giMaxTransInterval), "OPR");
             if (tProcess.gbLastPaidStatus.load()  == true) {
-                if (iDevicetype == Ant) sMsg = "Same as last^Paid IU" ;
+                if (iDevicetype == Ant) sMsg = "Same as last^Paid LPN" ;
                 else sMsg = "Same as last^Paid Card";
                 //--------
                 ShowLEDMsg(sMsg,sMsg);

@@ -43,6 +43,7 @@ private:
     boost::asio::io_context ioContext_;
     boost::asio::io_context::work work_;
     boost::asio::strand<boost::asio::io_context::executor_type> strand_;
+    std::atomic<bool> initialized_;
     std::thread ioContextThread_;
     std::string logFileName_;
     std::string remoteServerHost_;

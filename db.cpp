@@ -7812,8 +7812,8 @@ DBError db::updatemovementtrans(tExitTrans_Struct& tExit)
 	sqstr= sqstr + " redeem_time = '" + std::to_string(tExit.iRedeemTime) + "',";
 	sqstr= sqstr + " Card_Type = '" + std::to_string(tExit.iCardType) + "',";
 	sqstr= sqstr + " top_up_amt = '" + std::to_string(tExit.sTopupAmt) + "', ";
-	sqstr= sqstr + " update_dt = '" + gsUpdateTime + "'";
-	sqstr= sqstr + "where iu_tk_no = '" + tExit.sIUNo + "' and entry_time = '"+ tExit.sEntryTime + "' and exit_time is null and charindex(','+cast(entry_station as varchar(2))+',','" + gsZoneEntries + "')>0" ;
+	sqstr= sqstr + " update_dt = '" + gsUpdateTime + "' ";
+	sqstr= sqstr + "where entry_time = '"+ tExit.sEntryTime + "' and exit_time is null and charindex(','+cast(entry_station as varchar(2))+',','" + gsZoneEntries + "')>0" ;
 	//------
 	//operation::getInstance()->writelog(sqstr,"DB");
 	//-----

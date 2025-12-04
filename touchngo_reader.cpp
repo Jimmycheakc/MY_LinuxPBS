@@ -10,6 +10,7 @@ TnG_Reader::TnG_Reader()
     : ioContext_(),
     strand_(boost::asio::make_strand(ioContext_)),
     work_(ioContext_),
+    initialized_(false),
     logFileName_("tng")
 {
 
@@ -45,6 +46,8 @@ void TnG_Reader::FnTnGReaderInit(const std::string& remoteServerHost, const std:
                         std::bind(&TnG_Reader::serverHandleFailureCb, this, std::placeholders::_1),
                         std::bind(&TnG_Reader::serverHandleRequestCb, this, std::placeholders::_1));
         httpServer_->run();
+
+        initialized_.store(true);
         
         Logger::getInstance()->FnLog("Touch n Go Reader initialization completed.");
         Logger::getInstance()->FnLog("Touch n Go Reader initialization completed.", logFileName_, "TNG");
@@ -57,12 +60,18 @@ void TnG_Reader::FnTnGReaderInit(const std::string& remoteServerHost, const std:
     }
     catch (const std::exception& ex)
     {
+        initialized_.store(false);
         Logger::getInstance()->FnLog(std::string("Exception during TnG_Reader initialization: ") + ex.what(), logFileName_, "TNG");
     }
 }
 
 void TnG_Reader::FnTnGReaderClose()
 {
+    if (!initialized_.load())
+        return;
+
+    initialized_.store(false);
+
     Logger::getInstance()->FnLog(__func__, logFileName_, "TNG");
 
     ioContext_.stop();
@@ -84,6 +93,9 @@ void TnG_Reader::startIoContextThread()
 
 void TnG_Reader::FnTnGReader_PayRequest(int payAmt, int discountAmt, long int enterTime, long int payTime, const std::string& orderId)
 {
+    if (!initialized_.load())
+        return;
+
     boost::asio::post(strand_, 
         [this, payAmt, discountAmt, enterTime, payTime, orderId] {
             if (httpClient_)
@@ -128,6 +140,9 @@ void TnG_Reader::payRequestFailureCb(const std::string& what, const boost::beast
 
 void TnG_Reader::FnTnGReader_PayCancel(const std::string& orderId)
 {
+    if (!initialized_.load())
+        return;
+
     boost::asio::post(strand_,
         [this, orderId] {
             if (httpClient_)
@@ -168,6 +183,9 @@ void TnG_Reader::payCancelFailureCb(const std::string& what, const boost::beast:
 
 void TnG_Reader::FnTnGReader_EnableReader(int enable, const std::string& orderId)
 {
+    if (!initialized_.load())
+        return;
+
     boost::asio::post(strand_, 
         [this, enable, orderId]
         {
