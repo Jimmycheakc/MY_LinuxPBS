@@ -2318,7 +2318,7 @@ std::string operation::GetVTypeStr(int iVType)
             writelog("last trans No: " + gsCompareNo, "OPR");
             writelog("Same as last LPN, duration :" + std::to_string(sameAsLastIUDuration.count()) + " less than Maximum interval: " + std::to_string(operation::getInstance()->tParas.giMaxTransInterval), "OPR");
             if (tProcess.gbLastPaidStatus.load()  == true) {
-                if (iDevicetype == Ant) sMsg = "Same as last^Paid LPN" ;
+                if (iDevicetype == Ant) sMsg = "Same as last^LPN" ;
                 else sMsg = "Same as last^Paid Card";
                 //--------
                 ShowLEDMsg(sMsg,sMsg);
