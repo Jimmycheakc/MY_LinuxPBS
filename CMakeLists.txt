@@ -46,6 +46,7 @@ set(SOURCE_FILES
     gpio.cpp
     lcd.cpp
     led.cpp
+    shutdown_manager.cpp
     event_manager.cpp
     event_handler.cpp
     ping.cpp
