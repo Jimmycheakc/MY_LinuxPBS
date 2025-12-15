@@ -129,6 +129,8 @@ void operation::OperationInit(io_context& ioContext)
     }
     //
     if (LoadParameter()) {
+        HandlePBSError(ParamOk);
+
         Initdevice(ioContext);
         //----
         writelog("EPS in operation","OPR");
@@ -162,6 +164,7 @@ void operation::OperationInit(io_context& ioContext)
         //-----
     }else {
         tProcess.gbInitParamFail = 1;
+        HandlePBSError(ParamError);
         writelog("Unable to load parameter, Please download or check!", "OPR");
         if (iRet == 1)
         {
@@ -325,11 +328,26 @@ void operation::handleLoopAPeriodicTimerTimeout(const boost::system::error_code 
         auto now = std::chrono::steady_clock::now();
         auto lastAction = FnGetLastActionTimeAfterLoopA();
         auto timeout = std::chrono::seconds(tParas.giOperationTO);
+        auto lpnTimeout = std::chrono::seconds(IniParser::getInstance()->FnGetLpnTimeout());
 
         if ((now - lastAction) > timeout)
         {
             FnLoopATimeoutHandler();
             return;
+        }
+        else if ((now - lastAction) > lpnTimeout)
+        {
+            if (gtStation.iType == tiExit && tExit.sLPN[0] == "" && tExit.sIUNo == "")
+            {
+                tExit.sIUNo = "0000000000";
+                tExit.iTransType = GetVTypeFromLoop();
+                tExit.sExitTime = Common::getInstance()->FnGetDateTimeFormat_yyyy_mm_dd_hh_mm_ss();
+                tExit.sLPN[0] = "0000000000";
+                tExit.sLPN[1] = "0000000000";
+                tExit.feefrom = "NULL";
+                CloseExitOperation(Manualopen);
+                return;
+            }
         }
 
         pLoopATimer_->expires_after(std::chrono::seconds(1));
@@ -361,10 +379,26 @@ void operation::startLoopAPeriodicTimer()
     }
 }
 
+void operation::stopLoopAPeriodicTimer()
+{
+    Logger::getInstance()->FnLog(__func__, "", "OPR");
+    if (pLoopATimer_)
+    {
+        pLoopATimer_->cancel();
+    }
+    else
+    {
+        Logger::getInstance()->FnLog("Unable to stop Loop A periodic timer due to pLoopATimer is nullptr.", "", "OPR");
+    }
+}
+
 void operation::FnLoopATimeoutHandler()
 {
     Logger::getInstance()->FnLog("Loop A Operation Timeout handler.", "", "OPR");
-    EnableCashcard(false);
+    if (gtStation.iType == tiExit)
+    {
+        EnableCashcard(false);
+    }
     LoopACome();
 }
 
@@ -423,22 +457,24 @@ void operation::LoopACome()
 
     //----
     writelog (transID, "OPR");
-    operation::getInstance()->EnableCashcard(true);
+    if (gtStation.iType == tiExit)
+    {
+        operation::getInstance()->EnableCashcard(true);
+    }
 }
 
 void operation::LoopAGone()
 {
     writelog ("Loop A End","OPR");
 
-    // Cancel the loop A timer 
-    if (pLoopATimer_)
-    {
-        pLoopATimer_->cancel();
-    }
-
+    stopLoopAPeriodicTimer();
     //------
     DIO::getInstance()->FnSetLCDBacklight(0);
-    EnableCashcard(false);
+
+    if (gtStation.iType == tiExit)
+    {
+        EnableCashcard(false);
+    }
 }
 void operation::LoopCCome()
 {
@@ -478,7 +514,7 @@ void operation::VehicleCome(string sNo)
 
 void operation::Openbarrier()
 {
-    FnSetLastActionTimeAfterLoopA();
+    stopLoopAPeriodicTimer();
     if (tProcess.giCardIsIn == 1) {
         ShowLEDMsg ("Please Take^CashCard.","Please Take^Cashcard.");
         return;
@@ -583,7 +619,7 @@ void operation::Clearme()
 	    tExit.iCardType = 0;
 	    tExit.sTopupAmt = 0;
 	    tExit.uposbatchno = "";
-	    tExit.feefrom = "EPS";
+	    tExit.feefrom = "";
 	    tExit.lpn = "";
 	
 	    tExit.iRateType = 0;
@@ -920,6 +956,8 @@ void operation::PBSEntry(string sIU)
     }
     if (iRet != 1) {
         ShowLEDMsg(tMsg.Msg_WithIU[0],tMsg.Msg_WithIU[1]);
+        tEntry.iTransType = 1;
+        tProcess.giShowType = 1;
     }
         //---------
     SaveEntry();
@@ -935,6 +973,7 @@ void operation:: Setdefaultparameter()
     tProcess.gsDefaultIU = "1096000001";
     tProcess.glNoofOfflineData = 0;
     tProcess.giSystemOnline = -1;
+    tProcess.gbLastDBConnected = false;
     //clear error msg
      for (int i= 0; i< Errsize; ++i){
         tPBSError[i].ErrNo = 0;
@@ -1456,19 +1495,54 @@ void operation::HandlePBSError(EPSError iEPSErr, int iErrCode)
     string sCmd = "";
     
     switch(iEPSErr){
+        case ParamOk:
+        {
+            if (tPBSError[iParam].ErrNo < 0) {
+                sErrMsg = "Parameter OK";
+            }
+            tPBSError[iParam].ErrNo = 0;
+            break;
+        }
+        case ParamError:
+        {
+            tPBSError[iParam].ErrNo = -1;
+            tPBSError[iParam].ErrMsg = "Parameter Error";
+            sErrMsg = tPBSError[iParam].ErrMsg;
+            break;
+        }
+        case LPRNoError:
+        {
+            if (tPBSError[iLPR].ErrNo < 0) {
+                sCmd = "03";
+                sErrMsg = "LPR OK";
+            }
+            tPBSError[iLPR].ErrNo = 0;
+            break;
+        }
+        case LPRError:
+        {
+            tPBSError[iLPR].ErrNo = -1;
+            tPBSError[iLPR].ErrMsg = "LPR Error";
+            sErrMsg = tPBSError[iLPR].ErrMsg;
+            sCmd = "03";
+            break;
+        }
         case DBNoError:
         {
             tPBSError[2].ErrNo = 0;
+            Sendmystatus();
             break;
         }
         case DBFailed:
         {
             tPBSError[2].ErrNo = -1;
+            Sendmystatus();
             break;
         }
         case DBUpdateFail:
         {
             tPBSError[2].ErrNo = -2;
+            Sendmystatus();
             break;
         }
         case TnGNoError:
@@ -1953,7 +2027,6 @@ void operation::FormatSeasonMsg(int iReturn, string sNo, string sMsg, string sLC
 
 void operation::ManualOpenBarrier(bool bPMS)
 {
-    FnSetLastActionTimeAfterLoopA();
      if (bPMS == true) writelog ("Manual open barrier by PMS", "OPR");
      else writelog ("Manual open barrier by operator", "OPR");
      //------------
@@ -2154,6 +2227,20 @@ void operation::ReceivedLPR(Lpr::CType CType,string LPN, string sTransid, string
     writelog ("Received Trans ID: "+sTransid + " LPN: "+ LPN ,"OPR");
     writelog ("Send Trans ID: "+ tProcess.gsTransID, "OPR");
 
+    if (LPN == "0000000000")
+    {
+        writelog ("Invalid LPN.", "OPR");
+        if (gtStation.iType == tientry)
+        {
+            ShowLEDMsg("No LPN Detected", "No LPN Detected");
+        }
+        else
+        {
+            ShowLEDMsg("No LPN Detected^Pls Tap Card !", "No LPN Detected^Pls Tap Card !");
+        }
+        return;
+    }
+
     int i = static_cast<int>(CType);
 
     if (tProcess.gsTransID == sTransid && tProcess.gbLoopApresent.load() == true && tProcess.gbsavedtrans == false)
@@ -2322,7 +2409,10 @@ std::string operation::GetVTypeStr(int iVType)
                 else sMsg = "Same as last^Paid Card";
                 //--------
                 ShowLEDMsg(sMsg,sMsg);
-                EnableCashcard(false);
+                if (gtStation.iType == tiExit)
+                {
+                    EnableCashcard(false);
+                }
                 Openbarrier();
             }else
             {
@@ -2422,6 +2512,7 @@ std::string operation::GetVTypeStr(int iVType)
                         tExit.iTransType = std::stoi(highestDigitLpnMatchScore.transType);
                         tExit.sOweAmt = std::stof(highestDigitLpnMatchScore.oweAmt);
                         tExit.iEntryID = std::stoi(highestDigitLpnMatchScore.entryStn);
+                        writelog("Highest Digit rate LPN : " + std::string(highestDigitLpnMatchScore.lpn) + " with digit rate of : " + std::to_string(highestDigitLpnMatchScore.digitLpnMatchRate), "OPR");
                         writelog("Exit LPN : " + tExit.sLPN[0] + " matched with outstanding entry in movement_trans : " + std::string(highestDigitLpnMatchScore.lpn) + " matched with digit rate >= 75", "OPR");
                     }
                     else if (highestWholeLpnMatchScore.wholeLpnMatchRate > IniParser::getInstance()->FnGetWholeLpnMatchRateThreshold())
@@ -2430,6 +2521,7 @@ std::string operation::GetVTypeStr(int iVType)
                         tExit.iTransType = std::stoi(highestWholeLpnMatchScore.transType);
                         tExit.sOweAmt = std::stof(highestWholeLpnMatchScore.oweAmt);
                         tExit.iEntryID = std::stoi(highestWholeLpnMatchScore.entryStn);
+                        writelog("Highest Whole rate LPN : " + std::string(highestWholeLpnMatchScore.lpn) + " with whole rate of : " + std::to_string(highestWholeLpnMatchScore.wholeLpnMatchRate), "OPR");
                         writelog("Exit LPN : " + tExit.sLPN[0] + " matched with outstanding entry in movement_trans : " + std::string(highestWholeLpnMatchScore.lpn) + " matched with whole rate > 60", "OPR");
                     }
                     else
@@ -3285,7 +3377,7 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
             FnSetLastActionTimeAfterLoopA();
             //-------
             if (state == 0) {
-                DebitOK(tExit.sIUNo, cardNo, "","",10, "", TnGReader, "");
+                DebitOK(tExit.sIUNo, cardNo, "","",(20 + payType), "", TnGReader, "");
                 writelog("DebitOK end", "OPR");
                 return;
             }

@@ -75,6 +75,7 @@ void IniParser::FnReadIniFile()
         TnGListenPort_                  = pt.get<std::string>("setting.TnGListenPort", "");
         WholeLpnMatchRateThreshold_     = pt.get<int>("setting.WholeLpnMatchRateThreshold");
         DigitLpnMatchRateThreshold_     = pt.get<int>("setting.DigitLpnMatchRateThreshold");
+        LpnTimeout_                     = pt.get<int>("setting.LpnTimeout");
 
         // Confirm [DI]
         LoopA_                          = pt.get<int>("DI.LoopA");
@@ -279,6 +280,11 @@ int IniParser::FnGetWholeLpnMatchRateThreshold() const
 int IniParser::FnGetDigitLpnMatchRateThreshold() const
 {
     return DigitLpnMatchRateThreshold_;
+}
+
+int IniParser::FnGetLpnTimeout() const
+{
+    return LpnTimeout_;
 }
 
 // Confirm [DI]

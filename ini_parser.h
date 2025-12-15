@@ -39,6 +39,7 @@ public:
     std::string FnGetTnGListenPort() const;
     int FnGetWholeLpnMatchRateThreshold() const;
     int FnGetDigitLpnMatchRateThreshold() const;
+    int FnGetLpnTimeout() const;
 
     // Confirm [DI]
     int FnGetLoopA() const;
@@ -97,6 +98,7 @@ private:
     std::string TnGListenPort_;
     int WholeLpnMatchRateThreshold_;
     int DigitLpnMatchRateThreshold_;
+    int LpnTimeout_;
 
     // Confirm [DI]
     int LoopA_;

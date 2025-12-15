@@ -7,6 +7,8 @@
 #include <sstream>
 #include "event_handler.h"
 #include "event_manager.h"
+#include "structuredata.h"
+#include "operation.h"
 
 Lpr* Lpr::lpr_ = nullptr;
 std::mutex Lpr::mutex_;
@@ -27,7 +29,9 @@ Lpr::Lpr()
     logFileName_("lpr"),
     commErrorTimeCriteria_(0),
     frontCameraInitialized_(false),
-    rearCameraInitialized_(false)
+    rearCameraInitialized_(false),
+    lastFrontCameraConnected_(false),
+    lastRearCameraConnected_(false)
 {
 }
 
@@ -200,6 +204,13 @@ void Lpr::handleFrontSocketConnect(bool success, const std::string& message)
 {
     if (success)
     {
+        // state changed: ERROR → CONNECTED
+        if (!lastFrontCameraConnected_)
+        {
+            operation::getInstance()->HandlePBSError(LPRNoError);
+        }
+        lastFrontCameraConnected_ = true;
+
         std::stringstream ss;
         ss << __func__ << "() Successfully connected to Server @ Front Camera IP : " << lprIp4Front_ << ", Port: " << lprPort_;
         Logger::getInstance()->FnLog(ss.str(), logFileName_, "LPR");
@@ -213,6 +224,13 @@ void Lpr::handleFrontSocketConnect(bool success, const std::string& message)
     }
     else
     {
+        // state changed: CONNECTED → ERROR
+        if (lastFrontCameraConnected_)
+        {
+            operation::getInstance()->HandlePBSError(LPRError);
+        }
+        lastFrontCameraConnected_ = false;
+
         std::stringstream ss;
         ss << __func__ << "() Failed to connect to Server @ Front Camera IP: " << lprIp4Front_ << ", Port: " << lprPort_ << ", Error: " << message;
         Logger::getInstance()->FnLog(ss.str(), logFileName_, "LPR");
@@ -366,6 +384,13 @@ void Lpr::handleRearSocketConnect(bool success, const std::string& message)
     {
         Logger::getInstance()->FnLog(__func__, logFileName_, "LPR");
 
+        // state changed: ERROR → CONNECTED
+        if (!lastRearCameraConnected_)
+        {
+            operation::getInstance()->HandlePBSError(LPRNoError);
+        }
+        lastRearCameraConnected_ = true;
+
         std::stringstream ss;
         ss << __func__ << "() Successfully connected to Server @ Rear Camera IP : " << lprIp4Rear_ << ", Port: " << lprPort_;
         Logger::getInstance()->FnLog(ss.str(), logFileName_, "LPR");
@@ -379,6 +404,13 @@ void Lpr::handleRearSocketConnect(bool success, const std::string& message)
     }
     else
     {
+        // state changed: CONNECTED → ERROR
+        if (lastRearCameraConnected_)
+        {
+            operation::getInstance()->HandlePBSError(LPRError);
+        }
+        lastRearCameraConnected_ = false;
+
         std::stringstream ss;
         ss << __func__ << "() Failed to connect to Server @ Rear Camera IP: " << lprIp4Rear_ << ", Port: " << lprPort_ << ", Error: " << message;
         Logger::getInstance()->FnLog(ss.str(), logFileName_, "LPR");

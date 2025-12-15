@@ -94,7 +94,7 @@ typedef enum {
 }eSubType;
 
 typedef enum {
-  iAntenna = 0,     
+  iLPR = 0,     
   iPrinter = 1,   
   iDB = 2,
   iReader = 3, 
@@ -118,8 +118,8 @@ typedef enum {
 typedef enum 
 {
 	NoError = 0,
-    AntennaNoError = 1,
-    AntennaError = 2,
+    LPRNoError = 1,
+    LPRError = 2,
     PrinterNoError = 3,
     PrinterError = 4,
     PrinterNoPaper = 5,
@@ -145,7 +145,9 @@ typedef enum
 	SDoorNoError = 26,
     BDoorError = 27,
 	BDoorNoError = 28,
-	BarrierStatus = 29
+	BarrierStatus = 29,
+	ParamOk = 30,
+	ParamError = 31
 } EPSError;  
 
 class trans_info {
@@ -378,6 +380,7 @@ struct  tProcess_Struct
 	int online_status;
 	int offline_status;
 	int giSystemOnline;
+	bool gbLastDBConnected;
 	bool sEnableReader;
 	//------ for fee calculation 
 	string gsLastPaidTrans;
