@@ -90,6 +90,8 @@ public:
     std::string FnFormatToFloatString(const std::string& str);
     std::string FnToUpper(const std::string& str);
     std::string FnTrim(const std::string& str);
+    long long FnGetUtcTimestamp(const std::string& dateStr);
+    long long FnConvertDateTimeToUnix(const std::string& value);
 
     /**
      * Singleton Common should not be cloneable.

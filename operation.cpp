@@ -2215,7 +2215,8 @@ void operation:: EnableCashcard(bool bEnable)
     if (bEnable == true) writelog ("Enable T&G Reader" ,"OPR");
     else writelog ("Disable T&G Reader" ,"OPR");
 
-    TnG_Reader::getInstance()->FnTnGReader_EnableReader(bEnable, tProcess.gsTransID);
+    // Temp: Disable due to it is LPR system
+    // TnG_Reader::getInstance()->FnTnGReader_EnableReader(bEnable, tProcess.gsTransID);
 
     /*
     if (bEnable == true){
@@ -2406,7 +2407,7 @@ std::string operation::GetVTypeStr(int iVType)
        if (GfeeFormat(tExit.sPaidAmt) > 0)
         {
             writelog("Send deduction command to T&G Reader: ", "OPR");
-            TnG_Reader::getInstance()->FnTnGReader_PayRequest(tExit.sPaidAmt * 100, 0, std::stol(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), std::stol(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), tProcess.gsTransID);
+            TnG_Reader::getInstance()->FnTnGReader_PayRequest(tExit.sPaidAmt * 100, 0, Common::getInstance()->FnGetUtcTimestamp(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), Common::getInstance()->FnGetUtcTimestamp(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), tProcess.gsTransID);
         }
     }
     else {
@@ -2689,6 +2690,10 @@ std::string operation::GetVTypeStr(int iVType)
    } 
     if (tExit.sPaidAmt > 0) 
     {
+        writelog("Send deduction command to T&G Reader: ", "OPR");
+        TnG_Reader::getInstance()->FnTnGReader_PayRequest(tExit.sPaidAmt * 100, 0, Common::getInstance()->FnGetUtcTimestamp(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), Common::getInstance()->FnGetUtcTimestamp(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), tProcess.gsTransID);
+        // Temp: MY KC comment out
+        /*
         if(iDevicetype > Ant){
             writelog("Send deduction command to T&G Reader: ", "OPR");
             TnG_Reader::getInstance()->FnTnGReader_PayRequest(tExit.sPaidAmt * 100, 0, std::stol(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), std::stol(Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss()), tProcess.gsTransID);
@@ -2699,6 +2704,7 @@ std::string operation::GetVTypeStr(int iVType)
             EnableCashcard(true);
                 //enable EPS
         }
+        */
     }
     else
     {
@@ -2839,8 +2845,8 @@ void operation::CloseExitOperation(TransType iStatus)
         case Manualopen:
         {
             tExit.iStatus = 4;
-            sLEDMsg = "Please process^ Have A Nice Day!";
-            sLCDMsg = "Please Process^ Have A Nice Day!";
+            sLEDMsg = "Please proceed^ Have A Nice Day!";
+            sLCDMsg = "Please Proceed^ Have A Nice Day!";
             break;
         }
         default:
@@ -3323,7 +3329,7 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
             int payType = 0;
             std::string cardNo = "";
             int bal = 0;
-            long int payTime = 0;
+            long long payTime = 0;
             std::string stan = "";
             std::string apprCode = "";
             
@@ -3361,7 +3367,7 @@ void operation::processTnGResponse(const std::string& respCmd, const std::string
 
                 if (param == "payTime")
                 {
-                    payTime = std::stol(value);
+                    payTime = Common::getInstance()->FnConvertDateTimeToUnix(value);
                 }
 
                 if (param == "stan")

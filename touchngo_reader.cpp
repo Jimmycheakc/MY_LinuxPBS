@@ -91,7 +91,7 @@ void TnG_Reader::startIoContextThread()
     }
 }
 
-void TnG_Reader::FnTnGReader_PayRequest(int payAmt, int discountAmt, long int enterTime, long int payTime, const std::string& orderId)
+void TnG_Reader::FnTnGReader_PayRequest(int payAmt, int discountAmt, long long enterTime, long long payTime, const std::string& orderId)
 {
     if (!initialized_.load())
         return;
@@ -264,53 +264,57 @@ boost::beast::http::response<boost::beast::http::string_body> TnG_Reader::server
 
                 if (path == "/w4g/PayResult")
                 {
-                    int state = 0;
+                    // 1. Set Defaults
+                    std::string state = "0"; // Changed to string to match your variable declaration
                     std::string orderId = "";
                     int payType = 0;
                     std::string cardNo = "";
                     int bal = 0;
-                    long int payTime = 0;
+                    long long payTime = 0;
                     std::string stan = "";
                     std::string apprCode = "";
 
-                    if (obj.contains("State"))
-                    {
-                        state = boost::json::value_to<int>(obj["State"]);
+                    // 2. Safe Parsing Helper Logic
+                    // Parsing 'state' safely as string or int
+                    if (auto* v = obj.if_contains("State")) {
+                        if (v->is_string()) state = v->as_string().c_str();
+                        else if (v->is_number()) state = std::to_string(v->as_int64());
                     }
 
-                    if (obj.contains("OrderId"))
-                    {
-                        orderId = boost::json::value_to<std::string>(obj["OrderId"]);
+                    if (auto* v = obj.if_contains("OrderId")) {
+                        if (v->is_string()) orderId = v->as_string().c_str();
                     }
 
-                    if (obj.contains("PayType"))
-                    {
-                        payType = boost::json::value_to<int>(obj["PayType"]);
+                    if (auto* v = obj.if_contains("PayType")) {
+                        if (v->is_number()) payType = static_cast<int>(v->as_int64());
                     }
 
-                    if (obj.contains("CardNo"))
-                    {
-                        cardNo = boost::json::value_to<std::string>(obj["CardNo"]);
+                    if (auto* v = obj.if_contains("CardNo")) {
+                        if (v->is_string()) cardNo = v->as_string().c_str();
                     }
 
-                    if (obj.contains("Balance"))
-                    {
-                        bal = boost::json::value_to<int>(obj["Balance"]);
+                    if (auto* v = obj.if_contains("Balance")) {
+                        if (v->is_number()) bal = static_cast<int>(v->as_int64());
                     }
 
-                    if (obj.contains("PayTime"))
-                    {
-                        payTime = boost::json::value_to<long int>(obj["PayTime"]);
+                    // 3. Safe Long Long Parsing for PayTime
+                    if (auto* v = obj.if_contains("PayTime")) {
+                        if (v->is_number()) {
+                            payTime = v->as_int64(); // Boost JSON uses int64_t internally
+                        } else if (v->is_string()) {
+                            try {
+                                // Handle case where PayTime is sent as a string "20260107..."
+                                payTime = std::stoll(v->as_string().c_str());
+                            } catch (...) { payTime = 0; }
+                        }
                     }
 
-                    if (obj.contains("STAN"))
-                    {
-                        stan = boost::json::value_to<std::string>(obj["STAN"]);
+                    if (auto* v = obj.if_contains("STAN")) {
+                        if (v->is_string()) stan = v->as_string().c_str();
                     }
 
-                    if (obj.contains("APPR_CODE"))
-                    {
-                        apprCode = boost::json::value_to<std::string>(obj["APPR_CODE"]);
+                    if (auto* v = obj.if_contains("APPR_CODE")) {
+                        if (v->is_string()) apprCode = v->as_string().c_str();
                     }
 
                     response_obj["State"] = 0;

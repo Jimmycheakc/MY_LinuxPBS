@@ -1146,3 +1146,48 @@ std::string Common::FnTrim(const std::string& str)
 
     return (start < end) ? std::string(start, end) : "";
 }
+
+long long Common::FnGetUtcTimestamp(const std::string& dateStr)
+{
+    if (dateStr.length() < 14) return 0;
+
+    struct tm tm_utc = {0};
+
+    // Parsing "YYYYMMDDHHMMSS"
+    try {
+        tm_utc.tm_year = std::stoi(dateStr.substr(0, 4)) - 1900;
+        tm_utc.tm_mon  = std::stoi(dateStr.substr(4, 2)) - 1;
+        tm_utc.tm_mday = std::stoi(dateStr.substr(6, 2));
+        tm_utc.tm_hour = std::stoi(dateStr.substr(8, 2));
+        tm_utc.tm_min  = std::stoi(dateStr.substr(10, 2));
+        tm_utc.tm_sec  = std::stoi(dateStr.substr(12, 2));
+        tm_utc.tm_isdst = 0; // UTC does not use Daylight Savings
+    } catch (...) {
+        return 0; 
+    }
+
+    // Convert to long integer (seconds since epoch)
+#ifdef _WIN32
+    return (long long)_mkgmtime(&tm_utc); // Windows
+#else
+    return (long long)timegm(&tm_utc);    // Linux/Unix
+#endif
+}
+
+long long Common::FnConvertDateTimeToUnix(const std::string& value)
+{
+    if (value.length() < 14) return 0;
+    struct tm tm_utc = {0};
+    tm_utc.tm_year = std::stoi(value.substr(0, 4)) - 1900;
+    tm_utc.tm_mon  = std::stoi(value.substr(4, 2)) - 1;
+    tm_utc.tm_mday = std::stoi(value.substr(6, 2));
+    tm_utc.tm_hour = std::stoi(value.substr(8, 2));
+    tm_utc.tm_min  = std::stoi(value.substr(10, 2));
+    tm_utc.tm_sec  = std::stoi(value.substr(12, 2));
+    
+#ifdef _WIN32
+    return _mkgmtime(&tm_utc);
+#else
+    return timegm(&tm_utc);
+#endif
+}

@@ -22,7 +22,7 @@ public:
 
     static TnG_Reader* getInstance();
     void FnTnGReaderInit(const std::string& clientHost, const std::string& clientPort, const std::string& serverHost, const std::string& serverPort);
-    void FnTnGReader_PayRequest(int payAmt, int discountAmt, long int enterTime, long int payTime, const std::string& orderId);
+    void FnTnGReader_PayRequest(int payAmt, int discountAmt, long long enterTime, long long payTime, const std::string& orderId);
     void FnTnGReader_PayCancel(const std::string& orderId);
     void FnTnGReader_EnableReader(int enable, const std::string& orderId);
     void FnTnGReaderClose();
