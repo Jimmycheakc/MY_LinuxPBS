@@ -615,7 +615,7 @@ void udpclient::startreceive()
 		//	operation::getInstance()->writelog("Local IP:"+ operation:: getInstance()->tParas.gsLocalIP, "UDP");  
 				         
             if (sender_ip != operation:: getInstance()->tParas.gsLocalIP) {
-                if (socket_.local_endpoint().port() == 2001)
+                if (socket_.local_endpoint().port() == static_cast<unsigned short>(std::stoi(IniParser::getInstance()->FnGetLocalUDPPort())))
                 {
                     processdata(data_, bytes_received);
                 }

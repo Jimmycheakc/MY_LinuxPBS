@@ -66,7 +66,9 @@ void operation::OperationInit(io_context& ioContext)
     {
         try
         {
-            m_udp = new udpclient(ioContext, tProcess.gsBroadCastIP, 2001, 2001, true);
+            unsigned short remoteUDPPort_ = static_cast<unsigned short>(std::stoi(IniParser::getInstance()->FnGetRemoteUDPPort()));
+            unsigned short localUDPPort_ = static_cast<unsigned short>(std::stoi(IniParser::getInstance()->FnGetLocalUDPPort()));
+            m_udp = new udpclient(ioContext, tProcess.gsBroadCastIP, remoteUDPPort_, localUDPPort_, true);
         }
         catch (const boost::system::system_error& e) // Catch Boost.Asio system errors
         {
@@ -432,14 +434,19 @@ void operation::LoopACome()
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
+
+    // Temp: Check after 500ms, if loopBStatus is on, then it is car
+    if (vechicleType == 7 && DIO::getInstance()->FnGetLoopBStatus())
+    {
+        vechicleType = 1;
+    }
     std::string transID = "";
     bool useFrontCamera = false;
-    /* Temp: Disable for MiniPC Testing
     // Motorcycle - use rear camera
     if (vechicleType == 7)
     {
         // For EdgeBox AI
-        useFrontCamera = true;
+        useFrontCamera = false;
         transID = tParas.gscarparkcode + "-" + std::to_string (gtStation.iSID) + "B-" + Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
     }
     // Car or Lorry - use front camera
@@ -448,10 +455,7 @@ void operation::LoopACome()
         useFrontCamera = true;
         transID = tParas.gscarparkcode + "-" + std::to_string (gtStation.iSID) + "F-" + Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
     }
-    */
-    // For miniPC testing
-    useFrontCamera = true;
-    transID = tParas.gscarparkcode + "-" + std::to_string (gtStation.iSID) + "-" + Common::getInstance()->FnGetDateTimeFormat_yyyymmddhhmmss();
+
     tProcess.gsTransID = transID;
     Lpr::getInstance()->FnSendTransIDToLPR(tProcess.gsTransID, useFrontCamera);
 
@@ -956,7 +960,8 @@ void operation::PBSEntry(string sIU)
     }
     if (iRet != 1) {
         ShowLEDMsg(tMsg.Msg_WithIU[0],tMsg.Msg_WithIU[1]);
-        tEntry.iTransType = 1;
+        // Temp: Disable the hardcoded Car Type
+        //tEntry.iTransType = 1;
         tProcess.giShowType = 1;
     }
         //---------
@@ -1751,8 +1756,17 @@ int operation::GetVTypeFromLoop()
             writelog ("Vehicle Type is car.", "OPR");
             ret = 1;
         }else{
-            writelog ("Vehicle Type is M/C.", "OPR");
-            ret = 7;
+            // Temp: IF detected LoopB only then classify as a car
+            if (DIO::getInstance()->FnGetLoopBStatus())
+            {
+                writelog ("Only LoopB detected. Vehicle Type is car.", "OPR");
+                ret = 1;
+            }
+            else
+            {
+                writelog ("Vehicle Type is M/C.", "OPR");
+                ret = 7;
+            }
         }
     }
     return ret;
